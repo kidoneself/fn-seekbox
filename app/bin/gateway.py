@@ -42,6 +42,7 @@ SKIP_RESPONSE_HEADERS = {
 
 # Probe the plugin's real site from this NAS, not from the browser.
 PLUGIN_PROBE = {
+    "ikantv": "https://api.naspt.vip/",
     "jutoushe": "https://1.star2.cn/",
     "lou1": "http://www.1lou.me",
     "wanou": "https://woog.nxog.eu.org/",
@@ -54,7 +55,6 @@ PLUGIN_PROBE = {
     "gaoqing888": "https://www.gaoqing888.com",
     "gying": "https://www.gying.net",
     "hunhepan": "https://hunhepan.com/search",
-    "ikantv": "https://api.naspt.vip/",
     "kkv": "http://kkv.q-23.cn",
     "melost": "https://www.melost.cn",
     "panlian": "https://pinglian.lol",

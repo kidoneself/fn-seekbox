@@ -16,7 +16,7 @@ BACKEND_PORT="18888"
 APP_PORT="${APP_PORT:-12668}"
 
 # 飞牛向导空字符串不会用镜像默认值；bash 的 :- 会。这 26 个是 NAS 直连实测能注册的。
-DEFAULT_PLUGINS="dyyjpro,duoduo,feikuai,gaoqing888,gying,hunhepan,ikantv,jutoushe,kkv,lingjisp,lou1,melost,ouge,panlian,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,wanou,weibo,xb6v,xiaozhang,yunso,zxzj"
+DEFAULT_PLUGINS="ikantv,dyyjpro,duoduo,feikuai,gaoqing888,gying,hunhepan,jutoushe,kkv,lingjisp,lou1,melost,ouge,panlian,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,wanou,weibo,xb6v,xiaozhang,yunso,zxzj"
 
 log_msg() {
     mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
@@ -52,15 +52,9 @@ export_runtime_env() {
     export MAX_CONCURRENCY="${MAX_CONCURRENCY:-200}"
     export MAX_PAGES="${MAX_PAGES:-30}"
     export ASYNC_PLUGIN_ENABLED="${ASYNC_PLUGIN_ENABLED:-true}"
-    export AUTH_ENABLED="${AUTH_ENABLED:-false}"
-    export AUTH_USERS AUTH_TOKEN_EXPIRY AUTH_JWT_SECRET PROXY
+    export PROXY
     export TZ="${TZ:-Asia/Shanghai}"
     export WEBROOT GATEWAY_HOST="0.0.0.0"
-    # 后端空 CHANNELS 会回落到内置 TG 频道；给个占位即可。真正搜索由网关强制 src=plugin。
-    if [ -z "${CHANNELS}" ]; then
-        CHANNELS="-"
-    fi
-    export CHANNELS
 }
 
 start_process() {

@@ -88,9 +88,22 @@ sudo appcenter-cli stop fn-seekbox
 sudo appcenter-cli start fn-seekbox
 ```
 
-### 改后端 / 网关
+### 改搜索后端（Go 源码）
 
-- 后端二进制：`app/bin/seekbox`（内网 `127.0.0.1:18888`）
+源码在 **`backend/pansou/`**（日常改这里）。交飞牛的是编译后的 **`app/bin/seekbox`** 二进制，FPK 里不带 Go 源码。
+
+详情见 [`backend/README.md`](backend/README.md)。
+
+```bash
+# 改插件优先级 / 搜索逻辑后，重新编译 linux/amd64 二进制
+./scripts/build-seekbox.sh
+# → 覆盖 app/bin/seekbox
+```
+
+需要本机 **Go 1.24+**，或已启动的 **Docker**。
+
+### 改网关 / 生命周期
+
 - Python 网关：`app/bin/gateway.py`（对外端口 + 静态页 + API 反代）
 - 生命周期脚本：`cmd/main`
 
@@ -98,13 +111,16 @@ sudo appcenter-cli start fn-seekbox
 
 ## 打包 FPK
 
-本机需安装 [fnpack](https://static2.fnnas.com/fnpack/)。项目自带 `pack.sh`，会在临时目录里只复制打包所需文件，避免把 `node_modules`、旧 `.fpk` 等打进去。
+本机需安装 [fnpack](https://static2.fnnas.com/fnpack/)。项目自带 `pack.sh`，会在临时目录里只复制打包所需文件，**不会**把 `backend/`、`frontend/` 源码打进包。
 
 ```bash
-# 若刚改过前端，先构建并同步
+# 若改过后端
+./scripts/build-seekbox.sh
+
+# 若改过前端
 cd frontend && npm run build && cp -R dist/* ../app/web/ && cd ..
 
-# 打包
+# 打包（提交飞牛用这个 .fpk）
 ./pack.sh
 # 输出：fn-seekbox-1.0.0.fpk
 ```
@@ -116,22 +132,24 @@ cd frontend && npm run build && cp -R dist/* ../app/web/ && cd ..
 ```
 fn-seekbox/
 ├── manifest              # 应用元数据（名称、版本、changelog）
-├── ICON.PNG              # 64×64 图标
-├── ICON_256.PNG          # 256×256 图标
-├── pack.sh               # 干净目录打包脚本
-├── config.env            # 本地 install-local 测试用
+├── ICON.PNG / ICON_256.PNG
+├── pack.sh               # 干净目录打包 → FPK（交飞牛）
+├── config.env
+├── backend/
+│   ├── README.md         # 后端开发说明
+│   └── pansou/           # Go 源码（日常改这里，不打进 FPK）
 ├── app/
 │   ├── bin/
-│   │   ├── seekbox       # 搜索后端（amd64）
+│   │   ├── seekbox       # 后端编译产物（打进 FPK）
 │   │   └── gateway.py    # Web 网关
 │   ├── web/              # 前端构建产物（打进 FPK）
-│   └── ui/               # 桌面图标配置
-├── frontend/             # Vue 源码（开发用，不打进 FPK）
-├── cmd/                  # 安装 / 升级 / 卸载 / 启停脚本
+│   └── ui/
+├── frontend/             # Vue 源码（不打进 FPK）
+├── scripts/
+│   └── build-seekbox.sh  # backend/pansou → app/bin/seekbox
+├── cmd/
 ├── config/
-│   ├── privilege         # run-as: package
-│   └── resource          # 原生应用，无 docker-project
-└── wizard/               # 安装 / 升级 / 卸载向导
+└── wizard/
 ```
 
 ---

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 在干净目录里打 FPK，避免把 frontend/node_modules、旧 .fpk 等打进包。
+# 在干净目录里打 FPK，避免把 frontend/node_modules、backend/ 源码、旧 .fpk 等打进包。
+# 交飞牛：只含 app/bin/seekbox（二进制）+ gateway + web 产物 + cmd/config/wizard。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
