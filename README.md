@@ -6,7 +6,7 @@
 | --- | --- |
 | 显示名 | 小白搜盘 |
 | 包名 | `fn-seekbox` |
-| 当前版本 | 1.2.2 |
+| 当前版本 | 1.2.3 |
 | 平台 | x86（amd64）/ ARM（arm64） |
 | 访问方式 | fnOS 统一网关（需登录） |
 | 维护者 | `kidoneself` |
@@ -38,7 +38,7 @@
 
 ### 方式一：安装 FPK（推荐）
 
-1. 根据 NAS 架构下载 `fn-seekbox-1.2.2-x86.fpk` 或 `fn-seekbox-1.2.2-arm.fpk`
+1. 根据 NAS 架构下载 `fn-seekbox-1.2.3-x86.fpk` 或 `fn-seekbox-1.2.3-arm.fpk`
 2. 打开 **应用中心** → **手动安装**，选择 FPK 文件
 3. 安装向导里按需填写出站代理；不需要代理可留空
 4. 安装完成后，在桌面点击 **小白搜盘** 图标
@@ -124,7 +124,7 @@ cd frontend && npm run build && cp -R dist/* ../app/web/ && cd ..
 
 # 打包（提交飞牛用这个 .fpk）
 ./pack.sh
-# 输出：fn-seekbox-1.2.2-x86.fpk
+# 输出：fn-seekbox-1.2.3-x86.fpk
 ```
 
 ---

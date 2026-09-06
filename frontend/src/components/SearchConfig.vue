@@ -45,6 +45,24 @@ let pingTimer = 0;
 const pingNet = (name: string) => pluginPing.value[name]?.net?.state || 'wait';
 const pingUse = (name: string) => pluginPing.value[name]?.use?.state || 'wait';
 
+const pingLabel = (kind: 'net' | 'use', state: string) => {
+  const common: Record<string, string> = {
+    wait: '未测',
+    ok: '正常',
+    slow: '较慢',
+    down: '异常',
+    fail: '失败',
+  };
+
+  if (kind === 'use' && state === 'empty') return '无结果';
+  return common[state] || '未知';
+};
+
+const pingTitle = (kind: 'net' | 'use', state: string) => {
+  const name = kind === 'net' ? '网络连通' : '实际试搜';
+  return `${name}：${pingLabel(kind, state)}`;
+};
+
 const availablePlugins = computed(() => healthData.value?.plugins || []);
 
 const stats = computed(() => ({
@@ -279,10 +297,20 @@ onMounted(() => {
                 :class="{ selected: selectedPlugins.includes(plugin) }"
                 @click="togglePlugin(plugin)"
               >
-                <div class="item-name">{{ plugin }}</div>
-                <div class="ping-dots" :title="'左网络 / 右搜索'">
-                  <span class="ping-dot" :class="'is-' + pingNet(plugin)"></span>
-                  <span class="ping-dot" :class="'is-' + pingUse(plugin)"></span>
+                <div class="item-main">
+                  <div class="item-name">{{ plugin }}</div>
+                  <div class="plugin-statuses" aria-label="来源检测状态">
+                    <span class="plugin-status" :title="pingTitle('net', pingNet(plugin))">
+                      <span class="ping-dot" :class="'is-' + pingNet(plugin)"></span>
+                      <span>网络</span>
+                      <strong>{{ pingLabel('net', pingNet(plugin)) }}</strong>
+                    </span>
+                    <span class="plugin-status" :title="pingTitle('use', pingUse(plugin))">
+                      <span class="ping-dot" :class="'is-' + pingUse(plugin)"></span>
+                      <span>试搜</span>
+                      <strong>{{ pingLabel('use', pingUse(plugin)) }}</strong>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -495,7 +523,9 @@ onMounted(() => {
 }
 .item-card.selected { border-color: hsl(var(--primary)); background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
 .item-name { font-weight: 900; margin-bottom: .6rem; }
-.ping-dots { display: flex; justify-content: center; gap: 8px; margin-top: .4rem; }
+.plugin-statuses { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .55rem; margin-top: .35rem; }
+.plugin-status { display: inline-flex; align-items: center; gap: .25rem; color: hsl(var(--muted-foreground)); font-size: .72rem; white-space: nowrap; }
+.plugin-status strong { color: hsl(var(--foreground)); font-weight: 650; }
 .ping-dot { width: 9px; height: 9px; border-radius: 9999px; background: #94a3b8; }
 .ping-dot.is-ok { background: #22c55e; }
 .ping-dot.is-slow, .ping-dot.is-empty { background: #eab308; }
@@ -705,7 +735,10 @@ onMounted(() => {
   font-size: .79rem;
   font-weight: 600;
 }
-.ping-dots { flex: 0 0 auto; gap: 4px; margin: 0; }
+.item-main { min-width: 0; flex: 1; }
+.plugin-statuses { gap: .28rem .5rem; margin-top: .22rem; }
+.plugin-status { gap: .2rem; font-size: .62rem; }
+.plugin-status strong { font-size: .64rem; }
 .ping-dot { width: 6px; height: 6px; }
 
 .detection-card {
