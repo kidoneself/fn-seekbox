@@ -201,17 +201,17 @@ onMounted(() => {
   <div class="config-container">
     <div class="config-header">
       <div>
-        <h1 class="config-title">来源</h1>
-        <p class="config-subtitle">仅插件来源：左点网络通不通，右点能不能搜到（用「电影」试搜）。</p>
+        <h1 class="config-title">来源设置</h1>
+        <p class="config-subtitle">选择参与搜索的来源和结果类型，设置只保存在当前浏览器。</p>
       </div>
 
       <div class="stats-bar">
         <div class="stat-item">
-          <span class="stat-label">插件</span>
+          <span class="stat-label">已启用来源</span>
           <span class="stat-value">{{ stats.plugins }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">网盘</span>
+          <span class="stat-label">结果类型</span>
           <span class="stat-value">{{ stats.diskTypes }}</span>
         </div>
       </div>
@@ -232,7 +232,7 @@ onMounted(() => {
     <div v-else class="config-content">
       <div class="tabs-nav">
         <button class="tab-button" :class="{ active: activeTab === 'plugins' }" @click="activeTab = 'plugins'">
-          <span class="tab-label">搜索插件</span>
+          <span class="tab-label">搜索来源</span>
           <span class="tab-count">{{ availablePlugins.length }}</span>
         </button>
         <button
@@ -240,7 +240,7 @@ onMounted(() => {
           :class="{ active: activeTab === 'diskTypes' }"
           @click="activeTab = 'diskTypes'"
         >
-          <span class="tab-label">网盘类型</span>
+          <span class="tab-label">结果类型</span>
           <span class="tab-count">{{ diskTypes.length }}</span>
         </button>
         <button
@@ -248,7 +248,7 @@ onMounted(() => {
           :class="{ active: activeTab === 'detection' }"
           @click="activeTab = 'detection'"
         >
-          <span class="tab-label">检测</span>
+          <span class="tab-label">链接检测</span>
           <span class="tab-status" :class="detectionSettings.enabled ? 'enabled' : 'disabled'">
             {{ detectionSettings.enabled ? '已开启' : '已关闭' }}
           </span>
@@ -259,14 +259,14 @@ onMounted(() => {
         <div v-show="activeTab === 'plugins'" class="tab-pane">
           <div class="pane-header">
             <div class="pane-title">
-              <h3>搜索插件配置</h3>
-              <span class="selected-count">已选 {{ selectedPlugins.length }} / {{ availablePlugins.length }}</span>
+              <h3>搜索来源</h3>
+              <span class="selected-count">已启用 {{ selectedPlugins.length }} / {{ availablePlugins.length }}</span>
             </div>
             <div class="pane-actions">
               <button @click="toggleAllPlugins" class="action-btn">
-                {{ selectedPlugins.length === availablePlugins.length ? '取消全选' : '全选' }}
+                {{ selectedPlugins.length === availablePlugins.length ? '全部关闭' : '全部启用' }}
               </button>
-              <button @click.stop="loadPluginPing(true)" class="action-btn">重新检测</button>
+              <button @click.stop="loadPluginPing(true)" class="action-btn">检测状态</button>
             </div>
           </div>
 
@@ -292,12 +292,12 @@ onMounted(() => {
         <div v-show="activeTab === 'diskTypes'" class="tab-pane">
           <div class="pane-header">
             <div class="pane-title">
-              <h3>网盘类型配置</h3>
-              <span class="selected-count">已选 {{ selectedDiskTypes.length }} / {{ diskTypes.length }}</span>
+              <h3>结果类型</h3>
+              <span class="selected-count">已显示 {{ selectedDiskTypes.length }} / {{ diskTypes.length }}</span>
             </div>
             <div class="pane-actions">
               <button @click="toggleAllDiskTypes" class="action-btn">
-                {{ selectedDiskTypes.length === diskTypes.length ? '取消全选' : '全选' }}
+                {{ selectedDiskTypes.length === diskTypes.length ? '全部关闭' : '全部启用' }}
               </button>
             </div>
           </div>
@@ -327,8 +327,8 @@ onMounted(() => {
           <div class="pane-content">
             <label class="detection-card" for="detection-toggle">
               <div class="detection-copy">
-                <div class="detection-title">自动检测当前可见链接</div>
-                <p class="detection-description">仅检测当前页面可见结果，降低额外开销。</p>
+                <div class="detection-title">自动检测搜索结果</div>
+                <p class="detection-description">只检测当前页可见链接，开启后搜索会稍慢。</p>
               </div>
 
               <div class="toggle-shell">
@@ -341,8 +341,8 @@ onMounted(() => {
       </div>
 
       <div class="action-bar">
-        <button class="export-btn" @click="openExportModal">导出插件配置</button>
-        <button @click="resetToDefault" class="reset-btn">重置默认</button>
+        <button class="export-btn" @click="openExportModal">导出</button>
+        <button @click="resetToDefault" class="reset-btn">恢复默认</button>
         <button @click="saveConfig" class="save-btn" :class="{ success: saveSuccess }">
           <span v-if="saveSuccess">✓ 已保存</span>
           <span v-else>保存配置</span>
@@ -578,5 +578,192 @@ onMounted(() => {
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   color: hsl(var(--foreground));
+}
+
+/* 1.1: settings are a compact control surface, not a dashboard. */
+.config-container {
+  width: min(100%, 980px);
+  max-width: none;
+  padding: 1rem;
+}
+
+.config-header {
+  align-items: flex-end;
+  margin-bottom: .75rem;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.config-title {
+  font-size: 1.15rem;
+  font-weight: 750;
+}
+
+.config-subtitle {
+  margin-top: .2rem;
+  font-size: .82rem;
+}
+
+.stats-bar { gap: .45rem; }
+.stat-item {
+  min-width: 0;
+  padding: .35rem .55rem;
+  border-radius: .4rem;
+  background: transparent;
+}
+.stat-label { display: inline; font-size: .74rem; }
+.stat-value { display: inline; margin: 0 0 0 .25rem; font-size: .8rem; font-weight: 700; }
+
+.tabs-nav {
+  gap: 1.25rem;
+  margin-bottom: .85rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.tab-button {
+  position: relative;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 0;
+  padding: .55rem .1rem;
+  font-size: .84rem;
+}
+.tab-button.active {
+  color: hsl(var(--primary));
+  background: transparent;
+  border-color: transparent;
+}
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: hsl(var(--primary));
+}
+.tab-count, .tab-status.enabled, .tab-status.disabled {
+  margin-left: .25rem;
+  color: inherit;
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+.tab-pane {
+  padding: .15rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.pane-header {
+  align-items: center;
+  margin-bottom: .65rem;
+}
+.pane-title { display: flex; align-items: baseline; gap: .5rem; }
+.pane-title h3 { font-size: .9rem; font-weight: 700; }
+.selected-count { margin: 0; font-size: .75rem; font-weight: 500; }
+.action-btn {
+  border: 0;
+  padding: .35rem .15rem;
+  color: hsl(var(--primary));
+  font-size: .77rem;
+  font-weight: 600;
+}
+.pane-content { margin-top: 0; }
+.items-grid {
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: .4rem;
+}
+.item-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .4rem;
+  min-width: 0;
+  min-height: 2.3rem;
+  padding: .45rem .55rem;
+  border-radius: .42rem;
+  background: hsl(var(--card));
+}
+.item-card.selected {
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--primary) / .55);
+  background: hsl(var(--primary) / .07);
+}
+.item-card.selected::before {
+  content: '✓';
+  color: hsl(var(--primary));
+  font-size: .76rem;
+  font-weight: 800;
+}
+.item-name {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .79rem;
+  font-weight: 600;
+}
+.ping-dots { flex: 0 0 auto; gap: 4px; margin: 0; }
+.ping-dot { width: 6px; height: 6px; }
+
+.detection-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: .75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: .5rem;
+  cursor: pointer;
+}
+.detection-title { font-size: .86rem; font-weight: 650; }
+.detection-description { margin: .2rem 0 0; font-size: .77rem; }
+.toggle-shell { position: relative; }
+.toggle-shell input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle-track { position: relative; width: 34px; height: 19px; transition: background .15s ease; }
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .2);
+  transition: transform .15s ease;
+}
+.toggle-track.active::after { transform: translateX(15px); }
+
+.action-bar {
+  gap: .5rem;
+  margin-top: .85rem;
+  padding-top: .7rem;
+  border-top: 1px solid hsl(var(--border));
+}
+.export-btn, .reset-btn, .save-btn {
+  padding: .45rem .65rem;
+  border-radius: .42rem;
+  font-size: .79rem;
+  font-weight: 650;
+}
+.modal-overlay { background: rgb(15 23 42 / .45); }
+.modal-content { width: min(620px, calc(100vw - 2rem)); border-radius: .6rem; }
+
+@media (max-width: 560px) {
+  .config-container { padding: .65rem; }
+  .config-header { align-items: flex-start; }
+  .config-subtitle { display: none; }
+  .tabs-nav { gap: .8rem; }
+  .items-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pane-header { align-items: flex-start; }
+  .pane-title { display: block; }
+  .action-bar {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: .2rem;
+    background: hsl(var(--background));
+  }
 }
 </style>

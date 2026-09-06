@@ -954,9 +954,6 @@ onUnmounted(() => {
       @success="handleLoginSuccess"
     />
     
-    <!-- 背景装饰 -->
-    <div class="bg-decorative"></div>
-    
     <!-- 导航栏 -->
     <nav ref="navHeaderRef" class="nav-header">
       <div class="nav-inner">
@@ -1846,6 +1843,159 @@ onUnmounted(() => {
 
   .standalone .main-content:not(.has-results) .search-page {
     margin-top: 1.25rem;
+  }
+}
+
+/* 1.1：克制、紧凑的应用外壳。 */
+.app-shell {
+  container-type: inline-size;
+  background: hsl(var(--background));
+}
+
+.bg-decorative {
+  display: none;
+}
+
+.nav-header {
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  backdrop-filter: none;
+}
+
+.nav-inner {
+  width: min(100%, 1320px);
+  height: 3.35rem;
+  padding: 0 1rem;
+}
+
+.brand {
+  gap: 0.55rem;
+}
+
+.brand-mark {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 0.45rem;
+  background: hsl(var(--primary));
+  box-shadow: none;
+}
+
+.brand-mark svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.brand-name {
+  font-size: 0.9rem;
+  font-weight: 680;
+  letter-spacing: 0;
+}
+
+.nav-menu {
+  gap: 0.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.nav-button {
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 550;
+}
+
+.nav-button.active {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  box-shadow: none;
+}
+
+.main-content,
+.standalone .main-content {
+  width: min(100%, 1320px);
+  padding: 0.8rem 1rem 1.25rem;
+}
+
+.search-form-block,
+.search-form-block.is-compact,
+.standalone .search-form-block,
+.standalone .search-form-block.is-compact {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-toolbar {
+  align-items: center;
+}
+
+.search-stats-block,
+.standalone .search-stats-block {
+  margin: 0.25rem 0;
+}
+
+.standalone .main-content:not(.has-results) .search-page {
+  width: min(100%, 860px);
+  margin: clamp(1.5rem, 7vh, 4rem) auto 0;
+}
+
+.embedded .main-content {
+  padding: 0.4rem;
+}
+
+.embedded .search-page,
+.embedded .search-page.has-searched {
+  gap: 0.35rem;
+}
+
+.compact-action {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.55rem;
+  background: hsl(var(--card));
+}
+
+.embedded :deep(.result-list) {
+  padding: 0;
+}
+
+.embedded :deep(.result-item) {
+  min-height: 3rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.embedded :deep(.result-meta .result-date),
+.embedded :deep(.result-meta .result-host),
+.embedded :deep(.result-meta > .meta-separator) {
+  display: none;
+}
+
+@container (max-width: 560px) {
+  .compact-action {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .standalone .main-content {
+    padding: 0.55rem;
+  }
+
+  .nav-inner {
+    padding: 0 0.55rem;
+  }
+
+  .nav-text {
+    display: none;
   }
 }
 </style>

@@ -1,5 +1,5 @@
 appname               = fn-seekbox
-version               = 1.0.3
+version               = 1.1.0
 display_name          = 小白搜盘
 desc                  = <p><strong>一个入口，搜索多个网盘来源。</strong>小白搜盘是专为飞牛 fnOS 打造的资源聚合搜索应用。输入影视、软件或学习资料名称，即可同时查询多个搜索来源，减少在不同网站之间反复切换的麻烦。</p><p>应用内置 26 个可配置搜索插件，自动汇总结果，并按百度网盘、阿里云盘、夸克网盘、天翼云盘、UC网盘、115、迅雷云盘、123云盘、磁力等类型分类展示。支持搜索来源开关、连通与试搜检测、结果链接检测以及 JSON / TXT 批量导出。</p><p>以 fnOS 原生 FPK 形式安装，无需 Docker；同时适配桌面小窗口和独立浏览器。应用接入 fnOS 统一网关鉴权，复用 NAS 登录状态，不额外暴露 Web 端口，并以独立应用用户运行。</p>
 platform              = x86
@@ -12,4 +12,4 @@ os_min_version        = 1.1.8
 desktop_uidir         = ui
 desktop_applaunchname = fn-seekbox.main
 ctl_stop              = true
-changelog             = 接入 fnOS 统一网关鉴权；内部后端仅监听 127.0.0.1，不向局域网暴露端口；优化双端布局并修复插件缓存并发异常。
+changelog             = 全新紧凑界面，分别适配 fnOS 小窗口与浏览器宽屏；结果支持一键复制和直接打开；新增搜索历史；重做来源设置并优化搜索与筛选效率。

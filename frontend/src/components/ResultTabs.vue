@@ -464,9 +464,12 @@ const handleScroll = (e: Event) => {
   }
 };
 
-// 打开链接
-const openLink = (url: string) => {
-  window.open(url, '_blank', 'noopener,noreferrer');
+const getLinkHost = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '资源链接';
+  }
 };
 
 // 通用复制函数（支持降级处理）
@@ -542,10 +545,13 @@ const getListPasswordStatus = (item: MergedResultItem, index: number) => {
   return listPasswordFeedbackStatus.value;
 };
 
-const copyListPassword = async (item: MergedResultItem, index: number) => {
-  if (!item.password) return;
-
-  const success = await copyToClipboard(item.password);
+const copyListEntry = async (item: MergedResultItem, index: number) => {
+  const content = [
+    item.note,
+    item.url,
+    item.password ? `提取码：${item.password}` : ''
+  ].filter(Boolean).join('\n');
+  const success = await copyToClipboard(content);
 
   clearListPasswordFeedbackTimer();
   listPasswordFeedbackKey.value = getResultItemKey(item, index);
@@ -734,12 +740,11 @@ onUnmounted(() => {
         <div ref="listContainerRef" v-else class="result-list" @scroll="handleScroll">
           <div 
             v-for="(item, index) in visibleItems" 
-            :key="index" 
+            :key="getResultItemKey(item, index)"
             class="result-item"
             :data-visible-index="index"
           >
-            <!-- 标题行（移动端单独占一行） -->
-            <div class="result-header">
+            <div class="result-content">
               <button
                 type="button"
                 class="result-title-button"
@@ -755,33 +760,26 @@ onUnmounted(() => {
                   ></span>
                 </span>
               </button>
-              <!-- 桌面端：数据来源+时间与标题同行 -->
-              <div class="result-meta desktop-only" v-if="item.source || item.datetime">
+              <div class="result-meta" v-if="item.source || item.datetime || item.password">
                 <span v-if="item.source" class="result-source">{{ formatSource(item.source) }}</span>
                 <span v-if="item.source && item.datetime" class="meta-separator">·</span>
                 <span v-if="item.datetime" class="result-date">{{ formatDateTime(item.datetime) }}</span>
+                <span v-if="item.source || item.datetime" class="meta-separator">·</span>
+                <span class="result-host">{{ getLinkHost(item.url) }}</span>
+                <span v-if="item.password" class="result-code">提取码 {{ item.password }}</span>
               </div>
             </div>
             
-            <!-- 移动端：数据来源+时间单独一行 -->
-            <div class="result-meta mobile-only" v-if="item.source || item.datetime">
-              <span v-if="item.source" class="result-source">{{ formatSource(item.source) }}</span>
-              <span v-if="item.source && item.datetime" class="meta-separator">·</span>
-              <span v-if="item.datetime" class="result-date">{{ formatDateTime(item.datetime) }}</span>
-            </div>
-            
-            <!-- 第二行：链接和提取码 -->
-            <div class="result-row">
-              <div class="result-link" @click="openLink(item.url)">{{ item.url }}</div>
+            <div class="result-actions">
               <button
-                v-if="item.password"
                 type="button"
-                class="result-password"
+                class="result-action result-copy"
                 :class="{
                   copied: getListPasswordStatus(item, index) === 'success',
                   'copy-failed': getListPasswordStatus(item, index) === 'error'
                 }"
-                @click="copyListPassword(item, index)"
+                :title="item.password ? '复制标题、链接和提取码' : '复制标题和链接'"
+                @click="copyListEntry(item, index)"
               >
                 <template v-if="getListPasswordStatus(item, index) === 'success'">
                   复制成功
@@ -790,9 +788,16 @@ onUnmounted(() => {
                   复制失败
                 </template>
                 <template v-else>
-                  提取码: <span class="password-value">{{ item.password }}</span>
+                  复制
                 </template>
               </button>
+              <a
+                class="result-action result-open"
+                :href="item.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="在浏览器中打开资源链接"
+              >打开</a>
             </div>
           </div>
           
@@ -870,14 +875,15 @@ onUnmounted(() => {
               </button>
             </div>
 
-            <button
-              type="button"
+            <a
               class="detail-link-preview"
+              :href="detailItem.url"
               :title="detailItem.url"
-              @click="openLink(detailItem.url)"
+              target="_blank"
+              rel="noopener noreferrer"
             >
               {{ detailItem.url }}
-            </button>
+            </a>
           </div>
         </div>
       </Transition>
@@ -1708,5 +1714,203 @@ onUnmounted(() => {
   margin-bottom: 0.125rem;
   padding: 0.55rem 0.65rem;
   border-radius: 0.4rem;
+}
+
+/* 1.1 信息密度：结果主体和操作区固定分栏，完整 URL 收进详情。 */
+.results-wrapper {
+  container-type: inline-size;
+}
+
+.results-container {
+  border-radius: 0.55rem;
+  background: hsl(var(--card));
+}
+
+.tabs {
+  min-height: 2.35rem;
+  padding: 0 0.35rem;
+  gap: 0;
+  background: hsl(var(--card));
+}
+
+.tab-button {
+  position: relative;
+  padding: 0.55rem 0.7rem 0.48rem;
+  border-radius: 0;
+  font-size: 0.8rem;
+}
+
+.tab-button.active {
+  background: transparent;
+  box-shadow: none;
+}
+
+.tab-button.active::after {
+  display: block;
+  content: '';
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0;
+  left: 0.7rem;
+  height: 2px;
+  background: hsl(var(--primary));
+}
+
+.result-list {
+  padding: 0;
+}
+
+.result-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.25rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.65);
+  border-radius: 0;
+  transition: background-color 0.14s ease;
+}
+
+.result-item:last-child {
+  border-bottom: 0;
+}
+
+.result-item:hover {
+  border-color: hsl(var(--border) / 0.65);
+  background: hsl(var(--muted) / 0.55);
+  transform: none;
+}
+
+.result-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.result-title {
+  font-size: 0.875rem;
+  line-height: 1.3;
+  font-weight: 560;
+}
+
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+}
+
+.result-source {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-size: inherit;
+  font-weight: 500;
+}
+
+.meta-separator {
+  margin: 0;
+  font-size: inherit;
+}
+
+.result-date,
+.result-host {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: inherit;
+}
+
+.result-code {
+  flex: 0 0 auto;
+  margin-left: 0.2rem;
+  color: hsl(var(--success));
+  font-weight: 600;
+}
+
+.result-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.result-action {
+  min-width: 2.7rem;
+  height: 1.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.55rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.35rem;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 550;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.result-action:hover {
+  border-color: hsl(var(--border-hover));
+  background: hsl(var(--muted));
+}
+
+.result-open {
+  border-color: hsl(var(--primary) / 0.35);
+  color: hsl(var(--primary));
+}
+
+.result-action.copied {
+  color: hsl(var(--success));
+  border-color: hsl(var(--success) / 0.35);
+  background: hsl(var(--success) / 0.08);
+}
+
+.result-action.copy-failed {
+  color: hsl(var(--destructive));
+}
+
+@container (max-width: 620px) {
+  .result-item {
+    gap: 0.4rem;
+    padding-right: 0.45rem;
+    padding-left: 0.55rem;
+  }
+
+  .result-date,
+  .result-host,
+  .result-meta > .meta-separator {
+    display: none;
+  }
+
+  .result-action {
+    min-width: 2.25rem;
+    padding: 0 0.4rem;
+  }
+}
+
+@container (max-width: 430px) {
+  .result-copy {
+    display: none;
+  }
+
+  .result-code {
+    max-width: 7.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 </style>

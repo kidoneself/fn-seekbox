@@ -8,6 +8,9 @@ STAGE="$(mktemp -d /tmp/fn-seekbox-pack.XXXXXX)"
 trap 'rm -rf "$STAGE"' EXIT
 
 FNPACK="${FNPACK:-fnpack}"
+PLATFORM="${PLATFORM:-$(awk -F= '/^platform/{gsub(/[[:space:]]/, "", $2); print $2}' "$ROOT/manifest") }"
+PLATFORM="${PLATFORM//[[:space:]]/}"
+SEEKBOX_BIN="${SEEKBOX_BIN:-$ROOT/app/bin/seekbox}"
 if ! command -v "$FNPACK" >/dev/null 2>&1; then
   echo "未找到 fnpack。请先从飞牛开发者站下载并安装："
   echo "  https://static2.fnnas.com/fnpack/"
@@ -16,14 +19,20 @@ fi
 
 echo "[pack] staging -> $STAGE"
 
-rsync -a \
-  "$ROOT/manifest" \
-  "$ROOT/ICON.PNG" \
-  "$ROOT/ICON_256.PNG" \
-  "$ROOT/cmd/" "$STAGE/cmd/" \
-  "$ROOT/config/" "$STAGE/config/" \
-  "$ROOT/wizard/" "$STAGE/wizard/" \
-  "$ROOT/app/" "$STAGE/app/"
+mkdir -p "$STAGE/cmd" "$STAGE/config" "$STAGE/wizard" "$STAGE/app"
+rsync -a "$ROOT/manifest" "$ROOT/ICON.PNG" "$ROOT/ICON_256.PNG" "$STAGE/"
+rsync -a "$ROOT/cmd/" "$STAGE/cmd/"
+rsync -a "$ROOT/config/" "$STAGE/config/"
+rsync -a "$ROOT/wizard/" "$STAGE/wizard/"
+rsync -a "$ROOT/app/" "$STAGE/app/"
+
+if [ ! -f "$SEEKBOX_BIN" ]; then
+  echo "后端二进制不存在: $SEEKBOX_BIN"
+  exit 1
+fi
+cp "$SEEKBOX_BIN" "$STAGE/app/bin/seekbox"
+sed -i.bak -E "s/^platform[[:space:]]*=.*/platform              = $PLATFORM/" "$STAGE/manifest"
+rm "$STAGE/manifest.bak"
 
 # 前端只打构建产物，不打源码树
 rm -rf "$STAGE/app/web"
@@ -35,7 +44,7 @@ chmod +x "$STAGE/cmd/"* "$STAGE/app/bin/seekbox" "$STAGE/app/bin/gateway.py" 2>/
 cd "$STAGE"
 "$FNPACK" build
 
-OUT="$ROOT/fn-seekbox-$(grep '^version' "$ROOT/manifest" | awk -F= '{print $2}' | xargs).fpk"
+OUT="$ROOT/fn-seekbox-$(grep '^version' "$ROOT/manifest" | awk -F= '{print $2}' | xargs)-$PLATFORM.fpk"
 mv -f fn-seekbox.fpk "$OUT"
 ls -lh "$OUT"
 echo "[pack] done: $OUT"

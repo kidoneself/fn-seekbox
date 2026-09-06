@@ -13,270 +13,137 @@ const props = defineProps<{
   canExport: boolean;
 }>();
 
-// 计算网盘类型数量
-const diskTypeCount = computed(() => {
-  return Object.keys(props.mergedResults || {}).length;
-});
+defineEmits<{
+  (e: 'exportResults'): void;
+  (e: 'forceRefresh'): void;
+}>();
+
+const diskTypeCount = computed(() => Object.keys(props.mergedResults || {}).length);
 </script>
 
 <template>
-  <div class="card">
-    <div class="stats-layout">
-      <div class="stats-metrics">
-        <!-- 搜索结果总数 -->
-        <div class="stats-chip stats-chip-primary">
-          <component :is="Icons.Grid()" class="w-4 h-4 text-muted-foreground" />
-          <span class="stats-label stats-label-desktop text-sm text-muted-foreground">搜索结果</span>
-          <span class="stats-label stats-label-mobile text-sm text-muted-foreground">结果</span>
-          <span class="font-semibold text-foreground">{{ total.toLocaleString() }}</span>
-        </div>
-        
-        <!-- 网盘类型数量 -->
-        <div class="stats-chip">
-          <component :is="Icons.Folder()" class="w-4 h-4 text-muted-foreground" />
-          <span class="stats-label stats-label-desktop text-sm text-muted-foreground">网盘类型</span>
-          <span class="stats-label stats-label-mobile text-sm text-muted-foreground">类型</span>
-          <span class="font-semibold text-foreground">{{ diskTypeCount }}</span>
-        </div>
-        
-        <!-- 搜索耗时 -->
-        <div v-if="searchTime" class="stats-chip stats-chip-time">
-          <component :is="Icons.Clock()" class="w-4 h-4 text-muted-foreground" />
-          <span class="stats-label stats-label-desktop text-sm text-muted-foreground">用时</span>
-          <span class="stats-label stats-label-mobile text-sm text-muted-foreground">用时</span>
-          <span class="font-semibold text-foreground">{{ searchTime }}ms</span>
-        </div>
-      </div>
+  <div class="search-summary">
+    <div class="summary-copy" aria-live="polite">
+      <strong>{{ total.toLocaleString() }}</strong>
+      <span>个结果</span>
+      <span class="summary-separator">·</span>
+      <span>{{ diskTypeCount }} 种类型</span>
+      <template v-if="searchTime">
+        <span class="summary-separator">·</span>
+        <span>{{ searchTime }}ms</span>
+      </template>
+      <template v-if="isUpdating">
+        <span class="summary-separator">·</span>
+        <span class="updating">仍在补充结果</span>
+      </template>
+    </div>
 
-      <div class="stats-actions">
-        <button
-          v-if="canExport"
-          :disabled="loading"
-          @click="$emit('export-results')"
-          title="批量导出"
-          aria-label="批量导出"
-          class="action-button action-button-label"
-        >
-          <component :is="Icons.Download()" class="w-4 h-4 action-icon"/>
-          <span class="action-label">批量导出</span>
-        </button>
-
-        <!-- 强制刷新按钮 -->
-        <button
-          :disabled="loading"
-          @click="$emit('force-refresh')"
-          title="强制刷新"
-          aria-label="强制刷新"
-          class="action-button"
-        >
-          <component :is="Icons.Refresh()" class="w-5 h-5 action-icon"/>
-        </button>
-      </div>
+    <div class="summary-actions">
+      <button
+        v-if="canExport"
+        type="button"
+        :disabled="loading"
+        title="批量导出搜索结果"
+        @click="$emit('exportResults')"
+      >
+        <component :is="Icons.Download()" />
+        <span>导出</span>
+      </button>
+      <button
+        type="button"
+        :disabled="loading"
+        title="重新搜索并绕过缓存"
+        @click="$emit('forceRefresh')"
+      >
+        <component :is="Icons.Refresh()" />
+        <span>刷新</span>
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.stats-layout {
+.search-summary {
+  min-height: 2.35rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0.9rem;
+  gap: 0.75rem;
+  padding: 0.25rem 0.15rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
 }
 
-.card {
-  border-radius: 0.85rem;
-  background: hsl(var(--card) / 0.9);
-  box-shadow: 0 6px 22px hsl(var(--shadow-color) / 0.04);
-}
-
-.stats-metrics {
+.summary-copy {
+  min-width: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
-  min-width: 0;
-}
-
-.stats-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
+  gap: 0.35rem;
   white-space: nowrap;
-  padding: 0.3rem 0.5rem;
-  border-radius: 0.5rem;
-  background: hsl(var(--muted) / 0.55);
 }
 
-.stats-label-mobile {
-  display: none;
+.summary-copy strong {
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
 }
 
-.stats-actions {
+.summary-separator {
+  color: hsl(var(--border-hover));
+}
+
+.updating {
+  color: hsl(var(--primary));
+}
+
+.summary-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0.625rem;
-  flex-shrink: 0;
+  gap: 0.3rem;
+  flex: 0 0 auto;
 }
 
-.action-button {
-  appearance: none;
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  transition: all 0.2s ease;
-  cursor: pointer;
+.summary-actions button {
+  height: 1.9rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.25rem;
-  border-radius: 9999px;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.35rem;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  font-size: 0.75rem;
 }
 
-.action-button:disabled {
-  opacity: 0.5;
+.summary-actions button:hover:not(:disabled) {
+  background: hsl(var(--muted));
+}
+
+.summary-actions button:disabled {
   cursor: not-allowed;
+  opacity: 0.45;
 }
 
-.action-button:focus-visible {
-  outline: 2px solid #93c5fd;
-  outline-offset: 2px;
+.summary-actions svg {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
-.action-button:hover:not(:disabled) {
-  border-color: hsl(var(--border-hover));
-  background: hsl(var(--muted) / 0.55);
-}
-
-.action-button-label {
-  gap: 0.5rem;
-  padding: 0 0.9rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.action-label {
-  white-space: nowrap;
-}
-
-.action-icon {
-  flex-shrink: 0;
-}
-
-.stats-actions .action-button:last-child {
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-}
-
-@media (max-width: 768px) {
-  .stats-layout {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.625rem 0.75rem;
-    gap: 0.75rem;
-  }
-
-  .stats-metrics {
-    flex: 1 1 auto;
-    min-width: 0;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    gap: 0.95rem;
-    padding-right: 0.4rem;
-  }
-
-  .stats-chip {
-    flex: 0 0 auto;
-    min-width: 0;
-    gap: 0.28rem;
-    overflow: hidden;
-    font-size: 0.75rem;
-  }
-
-  .stats-chip .font-semibold {
-    min-width: 0;
-    font-size: 0.75rem;
-    line-height: 1;
-  }
-
-  .stats-chip :deep(svg),
-  .stats-chip > :global(svg) {
-    width: 0.9rem;
-    height: 0.9rem;
-  }
-
-  .stats-label-desktop {
+@media (max-width: 520px) {
+  .summary-copy > span:nth-of-type(3),
+  .summary-copy > span:nth-of-type(4) {
     display: none;
   }
 
-  .stats-label-mobile {
-    display: inline;
-    font-size: 0.75rem;
-    line-height: 1;
-  }
-
-  .stats-chip-primary {
-    flex: 0 0 auto;
-    min-width: auto;
-  }
-
-  .stats-actions {
-    width: auto;
-    justify-content: flex-end;
-    gap: 0.45rem;
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-
-  .action-button,
-  .stats-actions .action-button:last-child {
-    width: 2rem;
-    height: 2rem;
-    min-height: 2rem;
+  .summary-actions button {
+    width: 1.9rem;
     padding: 0;
   }
 
-  .action-button-label {
-    flex: 0 0 auto;
-  }
-
-  .action-label {
+  .summary-actions button span {
     display: none;
   }
-
-  .action-icon {
-    width: 0.95rem;
-    height: 0.95rem;
-  }
-}
-
-.stats-layout {
-  padding: 0.4rem 0.55rem;
-}
-
-.card {
-  border-radius: 0.5rem;
-  box-shadow: none;
-}
-
-.stats-chip {
-  padding: 0 0.15rem;
-  border-radius: 0;
-  background: transparent;
-}
-
-.action-button {
-  min-height: 2rem;
-  border-radius: 0.4rem;
-}
-
-.stats-actions .action-button:last-child {
-  width: 2rem;
-  height: 2rem;
 }
 </style>
