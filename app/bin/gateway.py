@@ -451,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
         headers = {
             k: v
             for k, v in self.headers.items()
-            if k.lower() not in SKIP_REQUEST_HEADERS
+            if k.lower() not in SKIP_REQUEST_HEADERS and k.lower() != "authorization"
         }
         headers["Host"] = "%s:%s" % (BACKEND_HOST, BACKEND_PORT)
         headers["X-Forwarded-For"] = self.headers.get("X-Forwarded-For", "127.0.0.1")

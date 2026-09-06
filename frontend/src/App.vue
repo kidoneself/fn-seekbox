@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, computed, nextTick, watch } from 'vue';
-import { search, logout, getHealth, verifyToken, type SearchParams, type HealthStatus } from '@/api';
+import { search, getHealth, type SearchParams, type HealthStatus } from '@/api';
 import type { SearchResponse, MergedResults, ExportField, ExportSettings } from '@/types';
 import SearchForm from '@/components/SearchForm.vue';
 import ResultTabs from '@/components/ResultTabs.vue';
 import SearchStats from '@/components/SearchStats.vue';
 import SearchConfig from '@/components/SearchConfig.vue';
-import LoginDialog from '@/components/LoginDialog.vue';
 import ExportResultsModal from '@/components/ExportResultsModal.vue';
 import { getDiskTypeName } from '@/utils/diskTypes';
 import { loadLocal, saveLocal } from '@/utils/storage';
@@ -72,9 +71,6 @@ let forceRefreshPending = false;
 // 当前页面状态
 const currentPage = ref<'search' | 'status'>('search');
 
-const showLogin = ref(false);
-const isAuthenticated = ref(false);
-const currentUsername = ref('');
 const browserUrl = appPath('/');
 const isEmbedded = (() => {
   try {
@@ -857,62 +853,6 @@ const resetToInitial = () => {
   updateCount.value = 0;
 };
 
-// 检查认证状态（使用缓存的健康状态，避免重复调用API）
-const checkAuth = async () => {
-  try {
-    // 使用缓存的健康状态，避免重复调用 /health
-    const authEnabled = backendHealth.value?.auth_enabled || false;
-    const token = localStorage.getItem('auth_token');
-    
-    if (!authEnabled) {
-      // 认证未启用，不显示任何登录相关信息
-      isAuthenticated.value = false;
-      showLogin.value = false;
-      return;
-    }
-    
-    if (!token) {
-      // 需要认证但没有token
-      showLogin.value = true;
-      isAuthenticated.value = false;
-      return;
-    }
-    
-    // 验证token是否有效
-    const valid = await verifyToken();
-    if (valid) {
-      isAuthenticated.value = true;
-      currentUsername.value = localStorage.getItem('auth_username') || '';
-    } else {
-      showLogin.value = true;
-      isAuthenticated.value = false;
-    }
-  } catch (error) {
-    console.error('检查认证状态失败:', error);
-    // 出错时默认显示登录窗口
-    showLogin.value = true;
-    isAuthenticated.value = false;
-  }
-};
-
-// 监听401事件
-const handleAuthRequired = () => {
-  showLogin.value = true;
-};
-
-// 登录成功处理
-const handleLoginSuccess = () => {
-  window.location.reload();
-};
-
-// 退出登录
-const handleLogout = async () => {
-  if (confirm('确定要退出登录吗？')) {
-    await logout();
-    window.location.reload();
-  }
-};
-
 const handleForceRefresh = () => {
   if (loading.value) return;
   forceRefreshPending = true;
@@ -929,16 +869,12 @@ onMounted(async () => {
   loadExportSettings();
   syncMobileSearchLayout();
   
-  // 然后初始化其他状态
-  checkAuth();
-  window.addEventListener('auth:required', handleAuthRequired);
   window.addEventListener('resize', syncMobileSearchLayout);
 });
 
 onUnmounted(() => {
   // 确保在组件卸载时清理所有定时器和事件监听
   stopUpdate();
-  window.removeEventListener('auth:required', handleAuthRequired);
   window.removeEventListener('resize', syncMobileSearchLayout);
 });
 </script>
@@ -948,12 +884,6 @@ onUnmounted(() => {
     class="app-shell min-h-screen bg-background text-foreground flex flex-col"
     :class="isEmbedded ? 'embedded' : 'standalone'"
   >
-    <!-- 登录对话框 -->
-    <LoginDialog 
-      v-model:visible="showLogin" 
-      @success="handleLoginSuccess"
-    />
-    
     <!-- 导航栏 -->
     <nav ref="navHeaderRef" class="nav-header">
       <div class="nav-inner">
@@ -1016,19 +946,6 @@ onUnmounted(() => {
             </span>
             <span class="nav-text">浏览器打开</span>
           </a>
-          <button 
-            v-if="isAuthenticated"
-            @click="handleLogout"
-            class="nav-button logout-button"
-            :title="'退出登录 (当前用户: ' + currentUsername + ')'"
-          >
-            <span class="nav-icon">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-              </svg>
-            </span>
-            <span class="nav-text">退出</span>
-          </button>
         </nav>
       </div>
     </nav>
@@ -1040,12 +957,21 @@ onUnmounted(() => {
       :class="{ 'search-main': currentPage === 'search', 'has-results': hasSearched }"
     >
       <!-- 搜索页面 -->
-      <div v-if="currentPage === 'search'" class="search-page" :class="{ 'has-searched': hasSearched }">
+      <div class="search-page" :class="{ 'has-searched': hasSearched }">
+        <section v-if="!hasSearched && !isEmbedded" class="search-intro">
+          <div class="intro-status">
+            <span class="intro-status-dot"></span>
+            {{ backendHealth?.plugin_count || 26 }} 个来源已就绪
+          </div>
+          <h1>搜一次，找到更多。</h1>
+          <p>聚合检索常用网盘来源，结果自动归类，打开和复制都更快。</p>
+        </section>
         <!-- 搜索表单 -->
         <div class="search-toolbar">
           <div class="search-form-block" :class="{ 'is-compact': hasSearched }">
             <SearchForm
               :backend-health="backendHealth"
+              :loading="loading"
               @search="handleSearch"
               @search-complete="handleSearchComplete"
             />
@@ -1136,20 +1062,26 @@ onUnmounted(() => {
         />
       </div>
       
-      <!-- 配置页面 -->
-      <div v-else-if="currentPage === 'status'" class="status-page">
-        <div v-if="isEmbedded" class="status-toolbar">
-          <button type="button" class="status-back" @click="switchToSearch">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-            </svg>
-            返回搜索
-          </button>
-          <span>来源设置</span>
-        </div>
-        <SearchConfig :backend-health="backendHealth" />
-      </div>
     </main>
+
+    <Teleport to="body">
+      <Transition name="settings-fade">
+        <div v-if="currentPage === 'status'" class="settings-overlay" @click.self="switchToSearch">
+          <aside class="settings-drawer" aria-label="来源设置">
+            <header class="settings-drawer-header">
+              <div>
+                <strong>搜索设置</strong>
+                <span>调整来源、结果类型与链接检测</span>
+              </div>
+              <button type="button" aria-label="关闭设置" title="关闭" @click="switchToSearch">×</button>
+            </header>
+            <div class="settings-drawer-body">
+              <SearchConfig :backend-health="backendHealth" />
+            </div>
+          </aside>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -1791,6 +1723,7 @@ onUnmounted(() => {
   width: min(100%, 880px);
   margin: clamp(2rem, 9vh, 5.5rem) auto 0;
 }
+.standalone .search-page:not(.has-searched) .search-results-block { display: none; }
 
 .standalone .main-content:not(.has-results) .search-results-block {
   min-height: 12rem;
@@ -1997,5 +1930,131 @@ onUnmounted(() => {
   .nav-text {
     display: none;
   }
+}
+
+/* 1.2 product shell */
+.standalone .nav-header {
+  background: hsl(var(--background) / .94);
+  border-bottom-color: hsl(var(--border) / .75);
+  backdrop-filter: blur(14px);
+}
+
+.standalone .nav-inner { height: 3.65rem; }
+.standalone .brand-mark {
+  width: 2rem;
+  height: 2rem;
+  border-radius: .58rem;
+  background: linear-gradient(145deg, hsl(168 78% 34%), hsl(174 92% 20%));
+}
+.standalone .brand-name { font-size: .94rem; font-weight: 720; }
+.standalone .nav-button.active {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / .08);
+}
+
+.search-intro {
+  margin: 1.5rem 0 1.25rem;
+  text-align: left;
+}
+.intro-status {
+  display: inline-flex;
+  align-items: center;
+  gap: .42rem;
+  margin-bottom: .65rem;
+  color: hsl(var(--muted-foreground));
+  font-size: .76rem;
+  font-weight: 600;
+}
+.intro-status-dot {
+  width: .45rem;
+  height: .45rem;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 4px hsl(var(--primary) / .09);
+}
+.search-intro h1 {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-size: clamp(1.75rem, 4vw, 2.55rem);
+  font-weight: 760;
+  letter-spacing: -.045em;
+  line-height: 1.08;
+}
+.search-intro p {
+  margin: .55rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: .9rem;
+}
+.standalone .main-content:not(.has-results) .search-page {
+  width: min(100%, 760px);
+  margin-top: clamp(1rem, 5vh, 3rem);
+}
+.standalone .search-toolbar {
+  padding: .32rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: .75rem;
+  background: hsl(var(--card));
+  box-shadow: 0 12px 32px rgb(15 23 42 / .07), 0 2px 5px rgb(15 23 42 / .04);
+}
+.standalone .has-searched .search-toolbar {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(15 23 42 / .34);
+  backdrop-filter: blur(2px);
+}
+.settings-drawer {
+  width: min(620px, 92vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border));
+  box-shadow: -20px 0 60px rgb(15 23 42 / .14);
+}
+.settings-drawer-header {
+  min-height: 4.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .7rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+}
+.settings-drawer-header > div { display: flex; flex-direction: column; gap: .18rem; }
+.settings-drawer-header strong { font-size: .95rem; font-weight: 720; }
+.settings-drawer-header span { color: hsl(var(--muted-foreground)); font-size: .75rem; }
+.settings-drawer-header button {
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: .45rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.settings-drawer-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.settings-drawer :deep(.config-header) { display: none; }
+.settings-fade-enter-active, .settings-fade-leave-active { transition: opacity .18s ease; }
+.settings-fade-enter-active .settings-drawer, .settings-fade-leave-active .settings-drawer { transition: transform .18s ease; }
+.settings-fade-enter-from, .settings-fade-leave-to { opacity: 0; }
+.settings-fade-enter-from .settings-drawer, .settings-fade-leave-to .settings-drawer { transform: translateX(24px); }
+
+@container (max-width: 620px) {
+  .settings-drawer { width: 100vw; max-width: none; }
+  .settings-drawer-header { min-height: 3.5rem; }
 }
 </style>

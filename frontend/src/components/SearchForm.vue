@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { HealthStatus, SearchParams } from '@/api';
 import type { FilterConfig } from '@/types';
 import { Icons } from '@/components/ui';
@@ -11,6 +11,7 @@ const MAX_HISTORY_ITEMS = 8;
 
 const props = defineProps<{
   backendHealth: HealthStatus | null;
+  loading: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -19,7 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const keyword = ref('');
-const loading = ref(false);
+const searchInput = ref<HTMLInputElement | null>(null);
 const showAdvanced = ref(false);
 const inputFocused = ref(false);
 const includeKeywords = ref('');
@@ -76,9 +77,8 @@ const clearHistory = () => {
 const handleSearch = (historyKeyword?: string) => {
   if (historyKeyword) keyword.value = historyKeyword;
   const normalizedKeyword = keyword.value.trim();
-  if (!normalizedKeyword || loading.value) return;
+  if (!normalizedKeyword || props.loading) return;
 
-  loading.value = true;
   inputFocused.value = false;
   rememberKeyword(normalizedKeyword);
 
@@ -101,9 +101,6 @@ const handleSearch = (historyKeyword?: string) => {
   }
 
   emit('search', params);
-  window.setTimeout(() => {
-    loading.value = false;
-  }, 2000);
 };
 
 const handleBlur = () => {
@@ -111,6 +108,26 @@ const handleBlur = () => {
     inputFocused.value = false;
   }, 120);
 };
+
+const handleGlobalShortcut = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null;
+  const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    searchInput.value?.focus();
+    searchInput.value?.select();
+  } else if (event.key === '/' && !isTyping) {
+    event.preventDefault();
+    searchInput.value?.focus();
+  } else if (event.key === 'Escape') {
+    showAdvanced.value = false;
+    inputFocused.value = false;
+    searchInput.value?.blur();
+  }
+};
+
+onMounted(() => window.addEventListener('keydown', handleGlobalShortcut));
+onUnmounted(() => window.removeEventListener('keydown', handleGlobalShortcut));
 </script>
 
 <template>
@@ -128,12 +145,13 @@ const handleBlur = () => {
       </button>
 
       <input
+        ref="searchInput"
         v-model="keyword"
         type="search"
         class="search-input"
         placeholder="搜索电影、剧集、软件或学习资料"
         autocomplete="off"
-        :disabled="loading"
+        :disabled="props.loading"
         @focus="inputFocused = true"
         @blur="handleBlur"
         @keydown.enter="handleSearch()"
@@ -142,11 +160,11 @@ const handleBlur = () => {
       <button
         type="button"
         class="search-button"
-        :disabled="loading || !keyword.trim()"
+        :disabled="props.loading || !keyword.trim()"
         @click="handleSearch()"
       >
-        <component :is="loading ? Icons.Loading() : Icons.Search()" :class="['search-icon', loading && 'spinning']" />
-        <span>{{ loading ? '搜索中' : '搜索' }}</span>
+        <component :is="props.loading ? Icons.Loading() : Icons.Search()" :class="['search-icon', props.loading && 'spinning']" />
+        <span>{{ props.loading ? '搜索中' : '搜索' }}</span>
       </button>
 
       <div v-if="showHistory" class="history-popover">

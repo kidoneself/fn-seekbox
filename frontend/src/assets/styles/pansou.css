@@ -3,51 +3,51 @@
 @tailwind utilities;
 
 :root {
-  --background: 220 20% 97%;
+  --background: 210 20% 98%;
   --background-light: 0 0% 100%;
   --background-hover: 225 36% 96%;
   --background-container: 0, 0%, 100%, 0.9;
-  --foreground: 225 28% 14%;
+  --foreground: 215 32% 12%;
   --dot-color: 232 80% 72%;
 
   --card: 0 0% 100%;
   --card-hover: 228 40% 98%;
   --card-active: 228 38% 96%;
-  --card-foreground: 225 28% 14%;
+  --card-foreground: 215 32% 12%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 225 28% 14%;
 
-  --primary: 217 91% 56%;
+  --primary: 168 82% 27%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 224 30% 95%;
   --secondary-foreground: 225 25% 28%;
 
-  --muted: 225 32% 96%;
-  --muted-foreground: 222 13% 47%;
+  --muted: 210 24% 95%;
+  --muted-foreground: 215 12% 43%;
 
-  --accent: 232 100% 96%;
-  --accent-secondary: 217 91% 56%;
-  --accent-foreground: 234 76% 55%;
+  --accent: 166 38% 94%;
+  --accent-secondary: 168 82% 27%;
+  --accent-foreground: 168 82% 23%;
 
   --destructive: 0 72% 55%;
   --destructive-foreground: 0 0% 98%;
   --success: 142 48% 42%;
   --success-foreground: 0 0% 98%;
 
-  --border: 224 24% 89%;
-  --border-hover: 224 20% 78%;
-  --border-active: 234 62% 68%;
-  --input: 224 24% 89%;
-  --input-unread: 234 82% 62%;
-  --ring: 234 82% 62%;
+  --border: 214 22% 88%;
+  --border-hover: 214 18% 72%;
+  --border-active: 168 56% 42%;
+  --input: 214 22% 88%;
+  --input-unread: 168 70% 36%;
+  --ring: 168 70% 36%;
 
   --text: 225 28% 14%;
   --text-light: 0 0% 100%;
   --text-secondary: 222 13% 47%;
 
-  --selection: 234 82% 62%;
+  --selection: 168 70% 34%;
   --selection-foreground: 0 0% 100%;
 
   --radius: 0.5rem;
@@ -68,6 +68,7 @@
     min-width: 320px;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   }
 }
 

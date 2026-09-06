@@ -7,35 +7,10 @@ const api = axios.create({
   timeout: 10000
 });
 
-// 请求拦截器 - 自动添加token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// 响应拦截器 - 处理401
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // 清除token
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_username');
-      
-      // 触发显示登录窗口的事件
-      window.dispatchEvent(new CustomEvent('auth:required'));
-    }
-    return Promise.reject(error);
-  }
-);
+// 访问控制统一交给 fnOS 网关。清掉旧版独立登录残留，避免把过期令牌
+// 作为 Authorization 转给后端后出现 “invalid token”。
+localStorage.removeItem('auth_token');
+localStorage.removeItem('auth_username');
 
 // 搜索参数接口
 export interface SearchParams {

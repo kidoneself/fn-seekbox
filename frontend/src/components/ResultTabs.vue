@@ -687,13 +687,15 @@ onUnmounted(() => {
   <div class="results-wrapper">
     <!-- 初始状态 -->
     <div v-if="showInitialState" class="empty-state">
-      <div class="empty-icon">
-        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
+      <div class="initial-mark" aria-hidden="true">
+        <span></span><span></span><span></span>
       </div>
-      <p class="empty-title">输入关键词开始搜索</p>
-      <p class="empty-subtitle">支持电影、软件和学习资料</p>
+      <p class="empty-title">输入名称开始搜索</p>
+      <p class="empty-subtitle">电影、剧集、软件和学习资料均可检索</p>
+      <div class="initial-tips">
+        <span><kbd>Enter</kbd> 搜索</span>
+        <span>结果自动按网盘归类</span>
+      </div>
     </div>
     
     <!-- 搜索中状态 -->
@@ -727,7 +729,8 @@ onUnmounted(() => {
           :class="{ active: activeTab === type }"
           @click="activeTab = type"
         >
-          {{ getDiskName(type) }} ({{ mergedResults[type]?.length || 0 }})
+          <span>{{ getDiskName(type) }}</span>
+          <small>{{ mergedResults[type]?.length || 0 }}</small>
         </button>
       </div>
       
@@ -744,6 +747,7 @@ onUnmounted(() => {
             class="result-item"
             :data-visible-index="index"
           >
+            <span class="result-rank">{{ index + 1 }}</span>
             <div class="result-content">
               <button
                 type="button"
@@ -1912,5 +1916,115 @@ onUnmounted(() => {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+}
+
+/* 1.2 product-grade result surface */
+.empty-state,
+.searching-state {
+  min-height: 13rem;
+  border: 0;
+  background: transparent;
+}
+.initial-mark {
+  display: flex;
+  align-items: flex-end;
+  gap: .24rem;
+  height: 1.65rem;
+  margin-bottom: .8rem;
+}
+.initial-mark span {
+  width: .34rem;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  opacity: .9;
+}
+.initial-mark span:nth-child(1) { height: .7rem; opacity: .35; }
+.initial-mark span:nth-child(2) { height: 1.2rem; opacity: .65; }
+.initial-mark span:nth-child(3) { height: 1.65rem; }
+.initial-tips {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  margin-top: .85rem;
+  color: hsl(var(--muted-foreground));
+  font-size: .68rem;
+}
+.initial-tips kbd {
+  padding: .12rem .3rem;
+  border: 1px solid hsl(var(--border));
+  border-bottom-width: 2px;
+  border-radius: .28rem;
+  background: hsl(var(--card));
+  font: inherit;
+}
+.results-container {
+  border-color: hsl(var(--border));
+  border-radius: .65rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / .03), 0 10px 30px rgb(15 23 42 / .035);
+}
+.tabs {
+  min-height: 2.65rem;
+  padding: 0 .55rem;
+  background: hsl(var(--muted) / .38);
+}
+.tab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .65rem .65rem .58rem;
+  color: hsl(var(--muted-foreground));
+}
+.tab-button small {
+  min-width: 1.25rem;
+  padding: .08rem .28rem;
+  border-radius: 999px;
+  background: hsl(var(--border) / .65);
+  color: inherit;
+  font-size: .64rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.tab-button.active small { background: hsl(var(--primary) / .1); }
+.result-item {
+  grid-template-columns: 1.65rem minmax(0, 1fr) auto;
+  min-height: 3.65rem;
+  gap: .65rem;
+  padding: .48rem .75rem;
+}
+.result-rank {
+  align-self: start;
+  padding-top: .15rem;
+  color: hsl(var(--muted-foreground) / .58);
+  font-size: .7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.result-title { font-size: .86rem; font-weight: 620; }
+.result-meta { margin-top: .22rem; font-size: .69rem; }
+.result-source {
+  padding: .08rem .3rem;
+  border-radius: .26rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+.result-action {
+  height: 1.8rem;
+  min-width: 2.8rem;
+  border-radius: .38rem;
+  font-size: .72rem;
+  font-weight: 620;
+}
+.result-open {
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+  background: hsl(var(--primary));
+}
+.result-open:hover { background: hsl(var(--primary) / .9); }
+
+@container (max-width: 620px) {
+  .result-item { grid-template-columns: minmax(0, 1fr) auto; padding-inline: .6rem; }
+  .result-rank { display: none; }
+  .tabs { min-height: 2.4rem; padding-inline: .3rem; }
+  .tab-button { padding: .55rem .55rem .48rem; }
 }
 </style>
