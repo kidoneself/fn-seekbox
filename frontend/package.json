@@ -13,11 +13,13 @@
     "@vitejs/plugin-vue": "^5.1.4",
     "axios": "^1.11.0",
     "crypto-js": "^4.2.0",
+    "qrcode": "^1.5.4",
     "vite": "^5.4.19",
     "vue": "^3.5.19"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "@types/qrcode": "^1.5.6",
     "@vue/tsconfig": "^0.7.0",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import QRCode from 'qrcode';
 import { inspectVisibleLinks } from '@/api';
 import type {
   DetectionSettings,
@@ -40,6 +41,12 @@ const currentPage = ref(1);
 const listContainerRef = ref<HTMLElement | null>(null);
 // 当前查看详情的结果项
 const detailItem = ref<MergedResultItem | null>(null);
+const qrItem = ref<MergedResultItem | null>(null);
+const qrDiskType = ref('');
+const qrDataUrl = ref('');
+const qrLoading = ref(false);
+const qrError = ref('');
+let qrRequestId = 0;
 // 复制状态
 const linkCopyStatus = ref<'idle' | 'success' | 'error'>('idle');
 const passwordCopyStatus = ref<'idle' | 'success' | 'error'>('idle');
@@ -589,8 +596,72 @@ const closeTitleDetail = () => {
   resetCopyStatus();
 };
 
+const qrInstruction = computed(() => {
+  if (['magnet', 'ed2k', 'other'].includes(qrDiskType.value)) {
+    return '使用手机扫码打开资源链接';
+  }
+
+  return `使用${getDiskTypeName(qrDiskType.value)}网盘 App 扫码保存`;
+});
+
+const openQrCode = async (item: MergedResultItem) => {
+  const requestId = ++qrRequestId;
+  resetCopyStatus();
+  qrItem.value = item;
+  qrDiskType.value = activeTab.value;
+  qrDataUrl.value = '';
+  qrError.value = '';
+  qrLoading.value = true;
+
+  try {
+    const dataUrl = await QRCode.toDataURL(item.url, {
+      width: 360,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#102a25',
+        light: '#ffffff'
+      }
+    });
+
+    if (requestId === qrRequestId) {
+      qrDataUrl.value = dataUrl;
+    }
+  } catch (error) {
+    console.error('二维码生成失败:', error);
+    if (requestId === qrRequestId) {
+      qrError.value = '二维码生成失败，请复制链接后重试';
+    }
+  } finally {
+    if (requestId === qrRequestId) {
+      qrLoading.value = false;
+    }
+  }
+};
+
+const closeQrCode = () => {
+  qrRequestId++;
+  qrItem.value = null;
+  qrDiskType.value = '';
+  qrDataUrl.value = '';
+  qrError.value = '';
+  qrLoading.value = false;
+  resetCopyStatus();
+};
+
+const copyQrLink = async () => {
+  if (!qrItem.value) return;
+  const success = await copyToClipboard([
+    qrItem.value.url,
+    qrItem.value.password ? `提取码：${qrItem.value.password}` : ''
+  ].filter(Boolean).join('\n'));
+  setCopyStatus('link', success);
+};
+
 const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && detailItem.value) {
+  if (event.key === 'Escape' && qrItem.value) {
+    closeQrCode();
+  } else if (event.key === 'Escape' && detailItem.value) {
     closeTitleDetail();
   }
 };
@@ -652,8 +723,8 @@ const getDiskName = (type: string) => {
   return getDiskTypeName(type);
 };
 
-watch(detailItem, (newVal) => {
-  document.body.style.overflow = newVal ? 'hidden' : '';
+watch([detailItem, qrItem], ([newDetail, newQr]) => {
+  document.body.style.overflow = newDetail || newQr ? 'hidden' : '';
 });
 
 onMounted(() => {
@@ -795,6 +866,12 @@ onUnmounted(() => {
                   复制
                 </template>
               </button>
+              <button
+                type="button"
+                class="result-action result-qr"
+                title="显示链接二维码"
+                @click="openQrCode(item)"
+              >扫码</button>
               <a
                 class="result-action result-open"
                 :href="item.url"
@@ -888,6 +965,64 @@ onUnmounted(() => {
             >
               {{ detailItem.url }}
             </a>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="detail-fade">
+        <div v-if="qrItem" class="detail-overlay" @click="closeQrCode">
+          <div class="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-dialog-title" @click.stop>
+            <div class="qr-header">
+              <div>
+                <p class="detail-label">手机扫码</p>
+                <h3 id="qr-dialog-title" class="qr-title">{{ qrInstruction }}</h3>
+              </div>
+              <button
+                type="button"
+                class="detail-close"
+                aria-label="关闭二维码"
+                @click="closeQrCode"
+              >
+                <svg class="detail-close-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+
+            <div class="qr-body">
+              <div class="qr-code-frame" :class="{ 'is-loading': qrLoading }">
+                <div v-if="qrLoading" class="qr-loading">
+                  <span class="loading-spinner"></span>
+                  <span>正在生成</span>
+                </div>
+                <img v-else-if="qrDataUrl" :src="qrDataUrl" alt="网盘分享链接二维码" class="qr-code-image" />
+                <p v-else class="qr-error">{{ qrError }}</p>
+              </div>
+
+              <p class="qr-resource-title" :title="qrItem.note">{{ qrItem.note }}</p>
+              <div v-if="qrItem.password" class="qr-password">
+                <span>提取码</span>
+                <strong>{{ qrItem.password }}</strong>
+              </div>
+              <p class="qr-privacy">二维码在本机生成，分享链接不会发送给第三方。</p>
+            </div>
+
+            <div class="qr-actions">
+              <button
+                type="button"
+                class="qr-secondary-action"
+                :class="{ success: linkCopyStatus === 'success', error: linkCopyStatus === 'error' }"
+                @click="copyQrLink"
+              >{{ getCopyButtonText('link') }}</button>
+              <a
+                class="qr-primary-action"
+                :href="qrItem.url"
+                target="_blank"
+                rel="noopener noreferrer"
+              >浏览器打开</a>
+            </div>
           </div>
         </div>
       </Transition>
@@ -1341,6 +1476,149 @@ onUnmounted(() => {
   border-radius: 1rem;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2);
 }
+
+.qr-dialog {
+  width: min(100%, 390px);
+  max-height: min(92vh, 650px);
+  overflow-y: auto;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2);
+}
+
+.qr-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.1rem 0;
+}
+
+.qr-title {
+  margin: 0;
+  color: hsl(var(--foreground));
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.qr-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 1.1rem 0;
+}
+
+.qr-code-frame {
+  width: min(100%, 260px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 0.6rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.qr-code-frame.is-loading {
+  background: hsl(var(--muted) / 0.4);
+}
+
+.qr-code-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.qr-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+.qr-error {
+  margin: 0;
+  color: hsl(var(--destructive));
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.qr-resource-title {
+  width: 100%;
+  margin: 0.8rem 0 0;
+  overflow: hidden;
+  color: hsl(var(--foreground));
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-password {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.4rem;
+  background: hsl(var(--success) / 0.09);
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+}
+
+.qr-password strong {
+  color: hsl(var(--success));
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+.qr-privacy {
+  margin: 0.7rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.66rem;
+  text-align: center;
+}
+
+.qr-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.qr-secondary-action,
+.qr-primary-action {
+  height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 620;
+  text-decoration: none;
+}
+
+.qr-secondary-action {
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+
+.qr-secondary-action:hover { background: hsl(var(--muted)); }
+.qr-secondary-action.success { color: hsl(var(--success)); }
+.qr-secondary-action.error { color: hsl(var(--destructive)); }
+
+.qr-primary-action {
+  border: 1px solid hsl(var(--primary));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.qr-primary-action:hover { background: hsl(var(--primary) / 0.9); }
 
 .detail-header {
   display: flex;
