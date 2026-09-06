@@ -604,6 +604,13 @@ const qrInstruction = computed(() => {
   return `使用${getDiskTypeName(qrDiskType.value)}网盘 App 扫码保存`;
 });
 
+const buildQrContent = (item: MergedResultItem) => {
+  return [
+    item.url,
+    item.password ? `提取码：${item.password}` : ''
+  ].filter(Boolean).join('\n');
+};
+
 const openQrCode = async (item: MergedResultItem) => {
   const requestId = ++qrRequestId;
   resetCopyStatus();
@@ -614,7 +621,7 @@ const openQrCode = async (item: MergedResultItem) => {
   qrLoading.value = true;
 
   try {
-    const dataUrl = await QRCode.toDataURL(item.url, {
+    const dataUrl = await QRCode.toDataURL(buildQrContent(item), {
       width: 360,
       margin: 2,
       errorCorrectionLevel: 'M',
@@ -651,10 +658,7 @@ const closeQrCode = () => {
 
 const copyQrLink = async () => {
   if (!qrItem.value) return;
-  const success = await copyToClipboard([
-    qrItem.value.url,
-    qrItem.value.password ? `提取码：${qrItem.value.password}` : ''
-  ].filter(Boolean).join('\n'));
+  const success = await copyToClipboard(buildQrContent(qrItem.value));
   setCopyStatus('link', success);
 };
 
@@ -1006,7 +1010,9 @@ onUnmounted(() => {
                 <span>提取码</span>
                 <strong>{{ qrItem.password }}</strong>
               </div>
-              <p class="qr-privacy">二维码在本机生成，分享链接不会发送给第三方。</p>
+              <p class="qr-privacy">
+                {{ qrItem.password ? '二维码已包含分享链接和提取码' : '二维码已包含分享链接' }}，内容不会发送给第三方。
+              </p>
             </div>
 
             <div class="qr-actions">
