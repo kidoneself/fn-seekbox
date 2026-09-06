@@ -1,8 +1,9 @@
 import axios from 'axios';
 import type { SearchResponse, LinkCheckItem, LinkCheckResponse } from '@/types';
+import { appPath } from '@/utils/appPath';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: appPath('/api'),
   timeout: 10000
 });
 

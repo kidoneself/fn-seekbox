@@ -3,10 +3,11 @@
     "fn-seekbox.main": {
       "title": "小白搜盘",
       "icon": "images/icon-{0}.png",
-      "type": "url",
-      "protocol": "http",
-      "port": "${APP_PORT}",
-      "url": "/",
+      "type": "iframe",
+      "protocol": "",
+      "gatewayPrefix": "/app/fn-seekbox",
+      "gatewaySocket": "app.sock",
+      "url": "/app/fn-seekbox",
       "allUsers": true
     }
   }

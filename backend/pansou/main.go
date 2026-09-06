@@ -24,8 +24,8 @@ import (
 	"pansou/util/cache"
 
 	// 以下是插件的空导入，用于触发各插件的init函数，实现自动注册
-	_ "pansou/plugin/dyyjpro"
 	_ "pansou/plugin/duoduo"
+	_ "pansou/plugin/dyyjpro"
 	_ "pansou/plugin/feikuai"
 	_ "pansou/plugin/gaoqing888"
 	_ "pansou/plugin/gying"
@@ -123,13 +123,21 @@ func startServer() {
 
 	// 获取端口配置
 	port := config.AppConfig.Port
+	host := strings.TrimSpace(os.Getenv("PANSOU_HOST"))
+	if host == "" {
+		host = strings.TrimSpace(os.Getenv("BACKEND_HOST"))
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	listenAddr := net.JoinHostPort(host, port)
 
 	// 输出服务信息
-	printServiceInfo(port, pluginManager)
+	printServiceInfo(listenAddr, pluginManager)
 
 	// 创建HTTP服务器
 	srv := &http.Server{
-		Addr:         ":" + port,
+		Addr:         listenAddr,
 		Handler:      router,
 		ReadTimeout:  config.AppConfig.HTTPReadTimeout,
 		WriteTimeout: config.AppConfig.HTTPWriteTimeout,
@@ -199,9 +207,9 @@ func startServer() {
 }
 
 // printServiceInfo 打印服务信息
-func printServiceInfo(port string, pluginManager *plugin.PluginManager) {
+func printServiceInfo(listenAddr string, pluginManager *plugin.PluginManager) {
 	// 启动服务器
-	fmt.Printf("服务器启动在 http://localhost:%s\n", port)
+	fmt.Printf("服务器仅监听 http://%s\n", listenAddr)
 
 	// 输出代理信息
 	hasProxy := false

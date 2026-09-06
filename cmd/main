@@ -10,10 +10,11 @@ GATEWAY_PID_FILE="${TRIM_PKGVAR}/gateway.pid"
 BIN="${TRIM_APPDEST}/bin/seekbox"
 GATEWAY="${TRIM_APPDEST}/bin/gateway.py"
 WEBROOT="${TRIM_APPDEST}/web"
+GATEWAY_SOCKET="${TRIM_APPDEST}/app.sock"
+GATEWAY_PREFIX="/app/fn-seekbox"
 
 BACKEND_HOST="127.0.0.1"
 BACKEND_PORT="18888"
-APP_PORT="${APP_PORT:-12668}"
 
 # 飞牛向导空字符串不会用镜像默认值；bash 的 :- 会。这 26 个是 NAS 直连实测能注册的。
 DEFAULT_PLUGINS="ikantv,dyyjpro,duoduo,feikuai,gaoqing888,gying,hunhepan,jutoushe,kkv,lingjisp,lou1,melost,ouge,panlian,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,wanou,weibo,xb6v,xiaozhang,yunso,zxzj"
@@ -44,7 +45,7 @@ export_runtime_env() {
     fi
     export ENABLED_PLUGINS
     export PORT="${BACKEND_PORT}"
-    export BACKEND_HOST BACKEND_PORT APP_PORT
+    export BACKEND_HOST BACKEND_PORT
     export PANSOU_HOST="${BACKEND_HOST}" PANSOU_PORT="${BACKEND_PORT}"
     export CACHE_PATH="${TRIM_PKGVAR}/data/cache"
     export CACHE_ENABLED="${CACHE_ENABLED:-true}"
@@ -54,7 +55,7 @@ export_runtime_env() {
     export ASYNC_PLUGIN_ENABLED="${ASYNC_PLUGIN_ENABLED:-true}"
     export PROXY
     export TZ="${TZ:-Asia/Shanghai}"
-    export WEBROOT GATEWAY_HOST="0.0.0.0"
+    export WEBROOT GATEWAY_SOCKET GATEWAY_PREFIX
 }
 
 start_process() {
@@ -104,13 +105,13 @@ start_process() {
     echo $! > "$GATEWAY_PID_FILE"
     sleep 1
 
-    if ! status; then
+    if ! status || [ ! -S "$GATEWAY_SOCKET" ]; then
         echo "网关启动失败，见 ${GATEWAY_LOG}" > "${TRIM_TEMP_LOGFILE}"
         log_msg "ERROR: gateway failed"
         stop_process
         return 1
     fi
-    log_msg "started gateway=0.0.0.0:${APP_PORT}"
+    log_msg "started gateway=unix:${GATEWAY_SOCKET} prefix=${GATEWAY_PREFIX}"
     return 0
 }
 
@@ -131,11 +132,11 @@ stop_process() {
             kill -KILL "$pid" 2>/dev/null || true
         fi
     done
-    # 兜底：按端口清掉残留（仅本机回环后端 + 网关端口）
+    # 兜底：按端口清掉残留的本机回环后端。
     if command -v fuser >/dev/null 2>&1; then
         fuser -k "${BACKEND_PORT}/tcp" >/dev/null 2>&1 || true
-        fuser -k "${APP_PORT}/tcp" >/dev/null 2>&1 || true
     fi
+    [ -S "$GATEWAY_SOCKET" ] && rm -f "$GATEWAY_SOCKET"
     rm -f "$GATEWAY_PID_FILE" "$BACKEND_PID_FILE"
     log_msg "stopped"
     return 0

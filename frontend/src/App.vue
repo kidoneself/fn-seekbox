@@ -10,6 +10,7 @@ import LoginDialog from '@/components/LoginDialog.vue';
 import ExportResultsModal from '@/components/ExportResultsModal.vue';
 import { getDiskTypeName } from '@/utils/diskTypes';
 import { loadLocal, saveLocal } from '@/utils/storage';
+import { appPath } from '@/utils/appPath';
 
 // 后端健康状态缓存（应用启动时获取一次）
 const backendHealth = ref<HealthStatus | null>(null);
@@ -74,6 +75,14 @@ const currentPage = ref<'search' | 'status'>('search');
 const showLogin = ref(false);
 const isAuthenticated = ref(false);
 const currentUsername = ref('');
+const browserUrl = appPath('/');
+const isEmbedded = (() => {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+})();
 
 const switchToStatus = () => {
   currentPage.value = 'status';
@@ -935,7 +944,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell min-h-screen bg-background text-foreground transition-colors duration-300 flex flex-col">
+  <div
+    class="app-shell min-h-screen bg-background text-foreground flex flex-col"
+    :class="isEmbedded ? 'embedded' : 'standalone'"
+  >
     <!-- 登录对话框 -->
     <LoginDialog 
       v-model:visible="showLogin" 
@@ -946,14 +958,23 @@ onUnmounted(() => {
     <div class="bg-decorative"></div>
     
     <!-- 导航栏 -->
-    <nav ref="navHeaderRef" class="nav-header backdrop-blur-md bg-background/80 border-b border-border">
-      <div class="container mx-auto px-4 h-16 flex items-center justify-between">
-        <div class="flex items-center cursor-pointer" @click="switchToSearch">
-          <h1 class="brand-name">小白搜盘</h1>
-        </div>
+    <nav ref="navHeaderRef" class="nav-header">
+      <div class="nav-inner">
+        <button type="button" class="brand" @click="switchToSearch" aria-label="返回搜索">
+          <span class="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m15.5 15.5 4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+              <circle cx="10.5" cy="10.5" r="5.75" stroke="currentColor" stroke-width="2.2" />
+              <path d="M8.25 10.5h4.5M10.5 8.25v4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="brand-copy">
+            <strong class="brand-name">小白搜盘</strong>
+          </span>
+        </button>
         
         <!-- 导航菜单 -->
-        <nav class="flex items-center gap-2">
+        <nav class="nav-menu" aria-label="主导航">
           <button 
             @click="switchToSearch"
             class="nav-button"
@@ -979,8 +1000,25 @@ onUnmounted(() => {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
               </svg>
             </span>
-            <span class="nav-text">来源</span>
+            <span class="nav-text">设置</span>
           </button>
+          <a
+            v-if="isEmbedded"
+            :href="browserUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="nav-button nav-link"
+            title="在浏览器中打开"
+            aria-label="在浏览器中打开"
+          >
+            <span class="nav-icon">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5h5m0 0v5m0-5-8 8"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13v5a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h5"></path>
+              </svg>
+            </span>
+            <span class="nav-text">浏览器打开</span>
+          </a>
           <button 
             v-if="isAuthenticated"
             @click="handleLogout"
@@ -1001,22 +1039,52 @@ onUnmounted(() => {
     <!-- 主要内容区域 -->
     <main
       ref="mainContentRef"
-      class="main-content container mx-auto px-4 py-8 flex-1"
-      :class="{ 'search-main': currentPage === 'search' }"
+      class="main-content flex-1"
+      :class="{ 'search-main': currentPage === 'search', 'has-results': hasSearched }"
     >
       <!-- 搜索页面 -->
-      <div v-if="currentPage === 'search'" class="search-page">
+      <div v-if="currentPage === 'search'" class="search-page" :class="{ 'has-searched': hasSearched }">
         <!-- 搜索表单 -->
-        <div class="search-form-block mb-6">
-          <SearchForm 
-            :backend-health="backendHealth"
-            @search="handleSearch" 
-            @search-complete="handleSearchComplete"
-          />
+        <div class="search-toolbar">
+          <div class="search-form-block" :class="{ 'is-compact': hasSearched }">
+            <SearchForm
+              :backend-health="backendHealth"
+              @search="handleSearch"
+              @search-complete="handleSearchComplete"
+            />
+          </div>
+
+          <div v-if="isEmbedded" class="embedded-actions">
+            <button
+              type="button"
+              class="compact-action"
+              title="来源设置"
+              aria-label="来源设置"
+              @click="switchToStatus"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.4 15a1.7 1.7 0 00.34 1.88l.06.06a2 2 0 01-2.83 2.83l-.06-.06A1.7 1.7 0 0015 19.4a1.7 1.7 0 00-1 .6 1.7 1.7 0 00-.4 1.1V21a2 2 0 01-4 0v-.09A1.7 1.7 0 008.5 19.4a1.7 1.7 0 00-1.88.34l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-.6-1 1.7 1.7 0 00-1.1-.4H3a2 2 0 010-4h.09A1.7 1.7 0 004.6 8.5a1.7 1.7 0 00-.34-1.88l-.06-.06a2 2 0 012.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001-.6 1.7 1.7 0 00.4-1.1V3a2 2 0 014 0v.09A1.7 1.7 0 0015.5 4.6a1.7 1.7 0 001.88-.34l.06-.06a2 2 0 012.83 2.83l-.06.06A1.7 1.7 0 0019.4 9c.13.38.34.73.6 1 .3.29.69.45 1.1.45H21a2 2 0 010 4h-.09A1.7 1.7 0 0019.4 15z"></path>
+              </svg>
+            </button>
+            <a
+              :href="browserUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="compact-action"
+              title="在浏览器中打开"
+              aria-label="在浏览器中打开"
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5h5m0 0v5m0-5-8 8"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13v5a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h5"></path>
+              </svg>
+            </a>
+          </div>
         </div>
         
         <!-- 搜索统计 -->
-        <div v-if="hasSearched || loading" class="search-stats-block mb-6">
+        <div v-if="hasSearched || loading" class="search-stats-block">
           <SearchStats 
             :total="searchResults.total || 0" 
             :mergedResults="searchResults.mergedResults || {}" 
@@ -1073,6 +1141,15 @@ onUnmounted(() => {
       
       <!-- 配置页面 -->
       <div v-else-if="currentPage === 'status'" class="status-page">
+        <div v-if="isEmbedded" class="status-toolbar">
+          <button type="button" class="status-back" @click="switchToSearch">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            返回搜索
+          </button>
+          <span>来源设置</span>
+        </div>
         <SearchConfig :backend-health="backendHealth" />
       </div>
     </main>
@@ -1084,15 +1161,72 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: -10;
-  background-image: radial-gradient(circle at 1px 1px, hsl(var(--dot-color)) 1px, transparent 0);
-  background-size: 28px 28px;
-  opacity: 0.28;
+  background:
+    radial-gradient(circle at 18% 8%, hsl(var(--primary) / 0.12), transparent 26rem),
+    radial-gradient(circle at 82% 18%, hsl(var(--accent-secondary) / 0.12), transparent 24rem);
+  opacity: 1;
+}
+
+.app-shell {
+  isolation: isolate;
+}
+
+.nav-inner {
+  width: min(100%, 1180px);
+  height: 4rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brand {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0;
+  color: hsl(var(--foreground));
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.brand-mark {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  color: white;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent-secondary)));
+  box-shadow: 0 8px 20px hsl(var(--primary) / 0.25);
+}
+
+.brand-mark svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
 }
 
 .brand-name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.brand-copy small {
+  font-size: 0.6875rem;
+  color: hsl(var(--muted-foreground));
   line-height: 1;
 }
 
@@ -1100,34 +1234,46 @@ onUnmounted(() => {
   position: sticky;
   top: 0;
   z-index: 50;
+  background: hsl(var(--background) / 0.82);
+  border-bottom: 1px solid hsl(var(--border) / 0.8);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--card) / 0.76);
 }
 
 /* 导航按钮样式 */
 .nav-button {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  gap: 0.4rem;
+  padding: 0.48rem 0.8rem;
   background: transparent;
   color: hsl(var(--muted-foreground));
-  border: 1px solid hsl(var(--border));
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  border: 0;
+  border-radius: 0.55rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .nav-button:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
-  border-color: hsl(var(--accent));
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
 }
 
 .nav-button.active {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  border-color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.16);
 }
 
 .logout-button {
@@ -1157,13 +1303,105 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
+.nav-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
 .nav-text {
   white-space: nowrap;
+}
+
+.nav-link {
+  text-decoration: none;
 }
 
 /* 页面切换动画 */
 .search-page, .status-page {
   animation: fadeIn 0.3s ease-in-out;
+}
+
+.main-content {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 2.25rem 1.5rem 2rem;
+}
+
+.search-page {
+  width: 100%;
+}
+
+.search-hero {
+  max-width: 720px;
+  margin: 1.5rem auto 1.65rem;
+  text-align: center;
+}
+
+.hero-kicker {
+  width: fit-content;
+  margin: 0 auto 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.34rem 0.72rem;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+  border: 1px solid hsl(var(--primary) / 0.13);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.hero-status {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgb(34 197 94 / 0.12);
+}
+
+.search-hero h2 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  line-height: 1.12;
+  font-weight: 780;
+  letter-spacing: -0.055em;
+  color: hsl(var(--foreground));
+}
+
+.search-hero p {
+  margin: 0.9rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.95rem;
+}
+
+.search-form-block {
+  max-width: 760px;
+  margin: 0 auto 1.25rem;
+  padding: 0.6rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.15rem;
+  background: hsl(var(--card) / 0.94);
+  box-shadow: 0 18px 48px hsl(var(--shadow-color) / 0.1), 0 2px 8px hsl(var(--shadow-color) / 0.05);
+  transition: max-width 0.25s ease, margin 0.25s ease;
+}
+
+.search-form-block.is-compact {
+  max-width: none;
+  margin-bottom: 0.9rem;
+}
+
+.search-stats-block {
+  margin-bottom: 0.9rem;
+}
+
+.search-results-block {
+  min-height: 18rem;
+}
+
+.status-page {
+  max-width: 900px;
+  margin: 0 auto;
 }
 
 @keyframes fadeIn {
@@ -1189,7 +1427,7 @@ onUnmounted(() => {
     height: calc(100dvh - 4rem);
     min-height: 0;
     box-sizing: border-box;
-    padding-top: 2rem;
+    padding-top: 1rem;
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
     overflow: hidden;
     overflow-x: hidden;
@@ -1224,6 +1462,38 @@ onUnmounted(() => {
     padding-left: 1rem;
     padding-right: 1rem;
   }
+
+  .nav-inner {
+    padding: 0 0.9rem;
+  }
+
+  .brand-copy small {
+    display: none;
+  }
+
+  .brand-mark {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.65rem;
+  }
+
+  .search-hero {
+    margin: 0.75rem auto 1.25rem;
+  }
+
+  .search-hero h2 {
+    font-size: 2rem;
+  }
+
+  .search-hero p {
+    font-size: 0.85rem;
+    padding: 0 0.5rem;
+  }
+
+  .search-form-block {
+    padding: 0.42rem;
+    border-radius: 0.9rem;
+  }
   
   /* 移动端按钮样式 - 只显示图标 */
   .nav-button {
@@ -1236,6 +1506,346 @@ onUnmounted(() => {
   /* 移动端隐藏按钮文字 */
   .nav-text {
     display: none;
+  }
+}
+
+/* fnOS 小窗口：保持工具密度，把空间留给结果 */
+.bg-decorative {
+  background: hsl(var(--background));
+}
+
+.nav-inner {
+  width: 100%;
+  height: 3rem;
+  padding: 0 0.75rem;
+}
+
+.brand {
+  gap: 0.5rem;
+}
+
+.brand-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.4rem;
+  background: hsl(var(--primary));
+  box-shadow: none;
+}
+
+.brand-mark svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.brand-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.nav-header {
+  background: hsl(var(--card));
+  border-bottom-color: hsl(var(--border));
+  backdrop-filter: none;
+}
+
+.nav-menu {
+  gap: 0.125rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.nav-button {
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.nav-button.active {
+  background: hsl(var(--primary) / 0.08);
+  box-shadow: none;
+}
+
+.main-content {
+  width: 100%;
+  padding: 0.75rem;
+}
+
+.search-form-block,
+.search-form-block.is-compact {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-stats-block {
+  margin-bottom: 0.5rem;
+}
+
+.search-results-block {
+  min-height: 10rem;
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    height: calc(100dvh - 3rem);
+    padding: 0.5rem;
+  }
+
+  .search-page {
+    gap: 0.5rem;
+  }
+
+  .nav-inner {
+    padding: 0 0.5rem;
+  }
+
+  .brand-mark {
+    width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 0.35rem;
+  }
+
+  .search-form-block {
+    padding: 0;
+  }
+}
+
+/* 同一应用，两种宿主布局 */
+.search-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.search-toolbar .search-form-block {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.embedded .nav-header {
+  display: none;
+}
+
+.embedded.app-shell {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.embedded .main-content {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.embedded .search-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  gap: 0.5rem;
+}
+
+.embedded .search-page.has-searched {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.embedded .search-form-block,
+.embedded .search-form-block.is-compact {
+  margin: 0;
+}
+
+.embedded-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+
+.compact-action {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.compact-action:hover {
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.45);
+}
+
+.compact-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.embedded .search-stats-block {
+  margin: 0;
+}
+
+.embedded .search-results-block {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.embedded :deep(.results-wrapper),
+.embedded :deep(.results-container),
+.embedded :deep(.tab-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.embedded :deep(.results-wrapper),
+.embedded :deep(.results-container) {
+  width: 100%;
+  height: 100%;
+}
+
+.embedded :deep(.result-list) {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+  padding: 0.2rem 0.35rem;
+}
+
+/* 飞牛窗口只保留一行摘要，详细链接点标题后查看。 */
+.embedded :deep(.tabs) {
+  min-height: 2.25rem;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+.embedded :deep(.result-item) {
+  min-height: 2.3rem;
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  border-radius: 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.55);
+}
+
+.embedded :deep(.result-item:last-child) {
+  border-bottom: 0;
+}
+
+.embedded :deep(.result-header) {
+  align-items: center;
+}
+
+.embedded :deep(.result-title) {
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.embedded :deep(.result-row) {
+  display: none;
+}
+
+.embedded :deep(.result-meta.desktop-only) {
+  margin-left: 0.5rem;
+}
+
+.embedded :deep(.result-meta .meta-separator),
+.embedded :deep(.result-meta .result-date) {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .embedded :deep(.result-meta.mobile-only) {
+    display: none !important;
+  }
+}
+
+.embedded :deep(.empty-state) {
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.standalone .main-content {
+  width: min(100%, 1280px);
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+.standalone .main-content:not(.has-results) .search-page {
+  width: min(100%, 880px);
+  margin: clamp(2rem, 9vh, 5.5rem) auto 0;
+}
+
+.standalone .main-content:not(.has-results) .search-results-block {
+  min-height: 12rem;
+}
+
+.standalone .search-form-block,
+.standalone .search-form-block.is-compact {
+  margin-bottom: 0.75rem;
+}
+
+.status-toolbar {
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.status-back {
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.55rem;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.status-back svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.embedded .status-page {
+  max-width: none;
+  height: 100%;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  .standalone .main-content {
+    padding: 0.75rem;
+  }
+
+  .standalone .main-content:not(.has-results) .search-page {
+    margin-top: 1.25rem;
   }
 }
 </style>

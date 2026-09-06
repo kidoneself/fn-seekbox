@@ -82,7 +82,13 @@ const diskTypeCount = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.card {
+  border-radius: 0.85rem;
+  background: hsl(var(--card) / 0.9);
+  box-shadow: 0 6px 22px hsl(var(--shadow-color) / 0.04);
 }
 
 .stats-metrics {
@@ -99,6 +105,9 @@ const diskTypeCount = computed(() => {
   gap: 0.5rem;
   min-width: 0;
   white-space: nowrap;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--muted) / 0.55);
 }
 
 .stats-label-mobile {
@@ -244,5 +253,30 @@ const diskTypeCount = computed(() => {
     width: 0.95rem;
     height: 0.95rem;
   }
+}
+
+.stats-layout {
+  padding: 0.4rem 0.55rem;
+}
+
+.card {
+  border-radius: 0.5rem;
+  box-shadow: none;
+}
+
+.stats-chip {
+  padding: 0 0.15rem;
+  border-radius: 0;
+  background: transparent;
+}
+
+.action-button {
+  min-height: 2rem;
+  border-radius: 0.4rem;
+}
+
+.stats-actions .action-button:last-child {
+  width: 2rem;
+  height: 2rem;
 }
 </style>

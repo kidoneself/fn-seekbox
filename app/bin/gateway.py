@@ -6,19 +6,21 @@ import http.client
 import json
 import os
 import posixpath
+import socketserver
 import ssl
+import stat
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlencode, urlsplit
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 WEBROOT = os.path.abspath(os.environ.get("WEBROOT", "./web"))
 BACKEND_HOST = os.environ.get("BACKEND_HOST", os.environ.get("PANSOU_HOST", "127.0.0.1"))
 BACKEND_PORT = int(os.environ.get("BACKEND_PORT", os.environ.get("PANSOU_PORT", "18888")))
-LISTEN_HOST = os.environ.get("GATEWAY_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.environ.get("APP_PORT", os.environ.get("GATEWAY_PORT", "12668")))
+GATEWAY_PREFIX = "/" + os.environ.get("GATEWAY_PREFIX", "/app/fn-seekbox").strip("/")
+GATEWAY_SOCKET = os.path.abspath(os.environ.get("GATEWAY_SOCKET", "./app.sock"))
 
 PROXY_PREFIXES = ("/api", "/qqpd", "/gying", "/weibo", "/panlian")
 SKIP_REQUEST_HEADERS = {
@@ -294,6 +296,28 @@ def is_proxy_path(path: str) -> bool:
     return any(path == p or path.startswith(p + "/") for p in PROXY_PREFIXES)
 
 
+def strip_gateway_prefix(raw_path: str) -> str | None:
+    """Return the application-local path, or None for paths outside our gateway."""
+    parts = urlsplit(raw_path)
+    if parts.path == GATEWAY_PREFIX:
+        path = "/"
+    elif parts.path.startswith(GATEWAY_PREFIX + "/"):
+        path = parts.path[len(GATEWAY_PREFIX):]
+    else:
+        return None
+    return urlunsplit(("", "", path, parts.query, parts.fragment))
+
+
+def add_gateway_prefix(location: str) -> str:
+    """Keep backend redirects inside the authenticated gateway route."""
+    parts = urlsplit(location)
+    if parts.scheme or parts.netloc or not parts.path.startswith("/"):
+        return location
+    if parts.path == GATEWAY_PREFIX or parts.path.startswith(GATEWAY_PREFIX + "/"):
+        return location
+    return urlunsplit(("", "", GATEWAY_PREFIX + parts.path, parts.query, parts.fragment))
+
+
 def safe_join(root: str, url_path: str) -> str | None:
     rel = posixpath.normpath(urlsplit(url_path).path)
     if rel.startswith(".."):
@@ -336,7 +360,22 @@ class Handler(BaseHTTPRequestHandler):
         self._dispatch()
 
     def _dispatch(self) -> None:
-        path = urlsplit(self.path).path
+        app_path = strip_gateway_prefix(self.path)
+        if app_path is None:
+            self.send_error(404)
+            return
+        if not self.headers.get("X-Trim-Userid", "").strip():
+            payload = b'{"error":"fnOS authentication required"}\n'
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(payload)
+            return
+        self._app_path = app_path
+        path = urlsplit(app_path).path
         if path == "/api/plugin-ping":
             self._plugin_ping()
             return
@@ -346,7 +385,7 @@ class Handler(BaseHTTPRequestHandler):
         self._static()
 
     def _plugin_ping(self) -> None:
-        qs = parse_qs(urlsplit(self.path).query)
+        qs = parse_qs(urlsplit(self._app_path).query)
         if qs.get("refresh", [""])[0] in ("1", "true", "yes"):
             start_pings(True)
         payload = json.dumps(ping_snapshot(), ensure_ascii=False).encode("utf-8")
@@ -359,7 +398,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(payload)
 
     def _timeout_for_path(self) -> int:
-        path = urlsplit(self.path).path
+        path = urlsplit(self._app_path).path
         if path.startswith("/gying/") or path == "/api/search":
             return 180
         if path == "/api/health":
@@ -405,7 +444,7 @@ class Handler(BaseHTTPRequestHandler):
     def _proxy(self) -> None:
         length = int(self.headers.get("Content-Length", "0") or "0")
         body = self.rfile.read(length) if length > 0 else None
-        fwd_path, body = self._force_plugin_only(self.path, body)
+        fwd_path, body = self._force_plugin_only(self._app_path, body)
         conn = http.client.HTTPConnection(
             BACKEND_HOST, BACKEND_PORT, timeout=self._timeout_for_path()
         )
@@ -415,15 +454,15 @@ class Handler(BaseHTTPRequestHandler):
             if k.lower() not in SKIP_REQUEST_HEADERS
         }
         headers["Host"] = "%s:%s" % (BACKEND_HOST, BACKEND_PORT)
-        headers["X-Forwarded-For"] = self.client_address[0]
-        headers["X-Forwarded-Proto"] = "http"
+        headers["X-Forwarded-For"] = self.headers.get("X-Forwarded-For", "127.0.0.1")
+        headers["X-Forwarded-Proto"] = self.headers.get("X-Forwarded-Proto", "http")
         if body is not None:
             headers["Content-Length"] = str(len(body))
         try:
             conn.request(self.command, fwd_path, body=body, headers=headers)
             resp = conn.getresponse()
             payload = resp.read()
-            if urlsplit(self.path).path == "/api/health":
+            if urlsplit(self._app_path).path == "/api/health":
                 payload = self._scrub_health(payload)
             self.send_response(resp.status, resp.reason)
             for k, v in resp.getheaders():
@@ -431,6 +470,8 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 if k.lower() == "content-length":
                     continue
+                if k.lower() == "location":
+                    v = add_gateway_prefix(v)
                 self.send_header(k, v)
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -448,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
             conn.close()
 
     def _static(self) -> None:
-        full = safe_join(WEBROOT, self.path)
+        full = safe_join(WEBROOT, self._app_path)
         if full is None:
             self.send_error(403)
             return
@@ -506,14 +547,32 @@ class Handler(BaseHTTPRequestHandler):
         }.get(ext, "application/octet-stream")
 
 
+class ThreadingUnixHTTPServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def remove_stale_socket() -> None:
+    try:
+        mode = os.stat(GATEWAY_SOCKET).st_mode
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(mode):
+        raise RuntimeError("refusing to replace non-socket path: %s" % GATEWAY_SOCKET)
+    os.unlink(GATEWAY_SOCKET)
+
+
 def main() -> int:
     if not os.path.isdir(WEBROOT):
         sys.stderr.write("WEBROOT missing: %s\n" % WEBROOT)
         return 1
-    httpd = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
+    os.makedirs(os.path.dirname(GATEWAY_SOCKET), exist_ok=True)
+    remove_stale_socket()
+    httpd = ThreadingUnixHTTPServer(GATEWAY_SOCKET, Handler)
+    os.chmod(GATEWAY_SOCKET, 0o660)
     sys.stderr.write(
-        "gateway listening on %s:%s -> %s:%s web=%s\n"
-        % (LISTEN_HOST, LISTEN_PORT, BACKEND_HOST, BACKEND_PORT, WEBROOT)
+        "gateway listening on unix:%s prefix=%s -> %s:%s web=%s\n"
+        % (GATEWAY_SOCKET, GATEWAY_PREFIX, BACKEND_HOST, BACKEND_PORT, WEBROOT)
     )
     try:
         httpd.serve_forever()
@@ -521,6 +580,7 @@ def main() -> int:
         pass
     finally:
         httpd.server_close()
+        remove_stale_socket()
     return 0
 
 

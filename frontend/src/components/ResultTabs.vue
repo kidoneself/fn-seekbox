@@ -72,7 +72,10 @@ const inFlightKeys = new Set<string>();
 
 // 计算所有可用的网盘类型
 const diskTypes = computed(() => {
-  return Object.keys(props.mergedResults || {}).sort();
+  return Object.keys(props.mergedResults || {}).sort((a, b) => {
+    const countDifference = (props.mergedResults[b]?.length || 0) - (props.mergedResults[a]?.length || 0);
+    return countDifference || a.localeCompare(b);
+  });
 });
 
 // 判断是否有搜索结果
@@ -360,7 +363,7 @@ watch(
     if (newVal && Object.keys(newVal).length > 0) {
       nextTick(() => {
         // 如果当前没有选中标签，或者当前选中的标签在新数据中不存在，则选择第一个标签
-        const availableTypes = Object.keys(newVal);
+        const availableTypes = diskTypes.value;
         if (!activeTab.value || !availableTypes.includes(activeTab.value)) {
           activeTab.value = availableTypes[0] || '';
         }
@@ -683,7 +686,8 @@ onUnmounted(() => {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
       </div>
-      <p class="empty-title">输入关键词开始找</p>
+      <p class="empty-title">输入关键词开始搜索</p>
+      <p class="empty-subtitle">支持电影、软件和学习资料</p>
     </div>
     
     <!-- 搜索中状态 -->
@@ -884,6 +888,9 @@ onUnmounted(() => {
 <style scoped>
 .results-wrapper {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .empty-state, .searching-state {
@@ -891,18 +898,20 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3rem 1rem;
+  padding: 2.75rem 1rem;
   text-align: center;
   background-color: hsl(var(--card));
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
+  border-radius: 1.1rem;
+  box-shadow: 0 12px 36px hsl(var(--shadow-color) / 0.06);
 }
 
 .empty-icon {
-  width: 4rem;
-  height: 4rem;
-  background-color: hsl(var(--border));
-  border-radius: 9999px;
+  width: 3.75rem;
+  height: 3.75rem;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.14), hsl(var(--accent-secondary) / 0.1));
+  border: 1px solid hsl(var(--primary) / 0.12);
+  border-radius: 1.15rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -912,7 +921,7 @@ onUnmounted(() => {
 .empty-icon .icon {
   width: 2rem;
   height: 2rem;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--primary));
 }
 
 .searching-icon {
@@ -937,10 +946,42 @@ onUnmounted(() => {
 
 .empty-title, .searching-title {
   font-size: 1.125rem;
-  font-weight: 500;
-  color: hsl(var(--muted-foreground));
+  font-weight: 700;
+  color: hsl(var(--foreground));
   margin-bottom: 0.5rem;
 }
+
+.feature-list {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.15rem;
+}
+
+.feature-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.34rem 0.62rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  background: hsl(var(--muted) / 0.55);
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.feature-dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+}
+
+.feature-dot-blue { background: #6366f1; }
+.feature-dot-green { background: #22c55e; }
+.feature-dot-purple { background: #a855f7; }
 
 .empty-subtitle, .searching-subtitle {
   font-size: 0.875rem;
@@ -948,29 +989,44 @@ onUnmounted(() => {
 }
 
 .results-container {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   background-color: hsl(var(--card));
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid hsl(var(--border));
+  border-radius: 1rem;
+  box-shadow: 0 12px 34px hsl(var(--shadow-color) / 0.06);
   overflow: hidden;
 }
 
 .tabs {
   display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
   border-bottom: 1px solid hsl(var(--border));
-  background-color: hsl(var(--muted));
-  padding: 0 1rem;
+  background-color: hsl(var(--muted) / 0.55);
+  padding: 0.45rem;
+  gap: 0.25rem;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-button {
-  padding: 0.75rem 1rem;
+  padding: 0.52rem 0.8rem;
   white-space: nowrap;
   font-size: 0.875rem;
   color: hsl(var(--muted-foreground));
   background: transparent;
   border: none;
   cursor: pointer;
-  position: relative;
+  border-radius: 0.55rem;
   transition: all 0.2s ease;
 }
 
@@ -980,21 +1036,21 @@ onUnmounted(() => {
 
 .tab-button.active {
   color: hsl(var(--primary));
-  font-weight: 500;
+  font-weight: 650;
+  background: hsl(var(--card));
+  box-shadow: 0 1px 4px hsl(var(--shadow-color) / 0.08), inset 0 0 0 1px hsl(var(--border));
 }
 
 .tab-button.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background-color: hsl(var(--primary));
+  display: none;
 }
 
 .tab-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 300px;
+  overflow: hidden;
 }
 
 .empty-tab {
@@ -1004,23 +1060,39 @@ onUnmounted(() => {
 }
 
 .result-list {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   max-height: 600px;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 0.55rem;
 }
 
 .result-item {
-  padding: 0.75rem;
-  border-bottom: 1px solid hsl(var(--border));
-  transition: background-color 0.2s ease;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.28rem;
+  padding: 0.78rem 0.85rem;
+  border: 1px solid transparent;
+  border-radius: 0.72rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .result-item:hover {
-  background-color: hsl(var(--muted));
+  background-color: hsl(var(--primary) / 0.045);
+  border-color: hsl(var(--primary) / 0.12);
+  transform: translateY(-1px);
 }
 
 .result-row {
   display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.5rem;
@@ -1054,7 +1126,7 @@ onUnmounted(() => {
   display: block;
   width: 100%;
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 630;
   color: hsl(var(--foreground));
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1062,10 +1134,12 @@ onUnmounted(() => {
 }
 
 .result-title-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
+  overflow: hidden;
   gap: 0.45rem;
 }
 
@@ -1105,6 +1179,9 @@ onUnmounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* 桌面端：数据来源与标题同行 */
@@ -1173,8 +1250,11 @@ onUnmounted(() => {
 }
 
 .result-link {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   font-size: 0.875rem;
-  color: hsl(var(--primary));
+  color: hsl(var(--muted-foreground));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1183,6 +1263,7 @@ onUnmounted(() => {
 }
 
 .result-link:hover {
+  color: hsl(var(--primary));
   text-decoration: underline;
 }
 
@@ -1558,5 +1639,74 @@ onUnmounted(() => {
     margin-left: 1rem;
     margin-right: 1rem;
   }
+}
+
+/* fnOS 小窗口紧凑布局 */
+.empty-state,
+.searching-state {
+  padding: 1.5rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: none;
+}
+
+.empty-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.625rem;
+  border: 0;
+  border-radius: 50%;
+  background: hsl(var(--muted));
+}
+
+.empty-icon .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.empty-title,
+.searching-title {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.empty-subtitle,
+.searching-subtitle {
+  font-size: 0.75rem;
+}
+
+.results-container {
+  border-radius: 0.5rem;
+  box-shadow: none;
+}
+
+.tabs {
+  gap: 0.125rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.tab-button {
+  padding: 0.4rem 0.65rem;
+  border-radius: 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.tab-button.active {
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+
+.tab-content {
+  min-height: 180px;
+}
+
+.result-list {
+  max-height: calc(100vh - 10.5rem);
+  padding: 0.35rem;
+}
+
+.result-item {
+  margin-bottom: 0.125rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.4rem;
 }
 </style>

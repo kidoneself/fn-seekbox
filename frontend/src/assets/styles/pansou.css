@@ -3,55 +3,56 @@
 @tailwind utilities;
 
 :root {
-  --background: 30 10% 8%;
-  --background-light: 30 10% 10%;
-  --background-hover: 30 10% 12%;
-  --background-container: 30, 10%, 10%, 0.88;
-  --foreground: 36 22% 92%;
-  --dot-color: 40 28% 22%;
+  --background: 220 20% 97%;
+  --background-light: 0 0% 100%;
+  --background-hover: 225 36% 96%;
+  --background-container: 0, 0%, 100%, 0.9;
+  --foreground: 225 28% 14%;
+  --dot-color: 232 80% 72%;
 
-  --card: 30 12% 11%;
-  --card-hover: 30 10% 14%;
-  --card-active: 30 10% 16%;
-  --card-foreground: 36 22% 92%;
+  --card: 0 0% 100%;
+  --card-hover: 228 40% 98%;
+  --card-active: 228 38% 96%;
+  --card-foreground: 225 28% 14%;
 
-  --popover: 30 12% 11%;
-  --popover-foreground: 36 22% 92%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 225 28% 14%;
 
-  --primary: 40 58% 58%;
-  --primary-foreground: 30 20% 10%;
+  --primary: 217 91% 56%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 30 10% 16%;
-  --secondary-foreground: 36 16% 78%;
+  --secondary: 224 30% 95%;
+  --secondary-foreground: 225 25% 28%;
 
-  --muted: 30 8% 15%;
-  --muted-foreground: 32 10% 62%;
+  --muted: 225 32% 96%;
+  --muted-foreground: 222 13% 47%;
 
-  --accent: 40 28% 18%;
-  --accent-secondary: 40 36% 28%;
-  --accent-foreground: 40 58% 72%;
+  --accent: 232 100% 96%;
+  --accent-secondary: 217 91% 56%;
+  --accent-foreground: 234 76% 55%;
 
   --destructive: 0 72% 55%;
   --destructive-foreground: 0 0% 98%;
   --success: 142 48% 42%;
   --success-foreground: 0 0% 98%;
 
-  --border: 32 10% 20%;
-  --border-hover: 32 10% 26%;
-  --border-active: 40 30% 32%;
-  --input: 32 10% 20%;
-  --input-unread: 40 58% 58%;
-  --ring: 40 58% 58%;
+  --border: 224 24% 89%;
+  --border-hover: 224 20% 78%;
+  --border-active: 234 62% 68%;
+  --input: 224 24% 89%;
+  --input-unread: 234 82% 62%;
+  --ring: 234 82% 62%;
 
-  --text: 36 22% 92%;
-  --text-light: 30 20% 10%;
-  --text-secondary: 32 10% 62%;
+  --text: 225 28% 14%;
+  --text-light: 0 0% 100%;
+  --text-secondary: 222 13% 47%;
 
-  --selection: 40 58% 58%;
-  --selection-foreground: 30 20% 10%;
+  --selection: 234 82% 62%;
+  --selection-foreground: 0 0% 100%;
 
-  --radius: 0.4rem;
-  --shadow: rgba(0, 0, 0, 0.35);
+  --radius: 0.5rem;
+  --shadow: rgba(25, 35, 70, 0.12);
+  --shadow-color: 228 38% 22%;
 }
 
 /* 基础样式 */
@@ -63,7 +64,16 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
+}
+
+::selection {
+  color: hsl(var(--selection-foreground));
+  background: hsl(var(--selection));
 }
 
 /* 网格背景装饰 */

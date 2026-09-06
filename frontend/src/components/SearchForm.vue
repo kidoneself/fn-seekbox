@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import type { SearchParams } from '@/api';
 import type { HealthStatus } from '@/api';
 import type { FilterConfig } from '@/types';
@@ -12,6 +12,7 @@ const loading = ref(false);
 const showAdvanced = ref(false);
 const includeKeywords = ref('');
 const excludeKeywords = ref('');
+const hasActiveFilter = computed(() => Boolean(includeKeywords.value.trim() || excludeKeywords.value.trim()));
 
 // 接收后端健康状态作为 props
 const props = defineProps<{
@@ -113,12 +114,12 @@ const handleSearch = () => {
 </script>
 
 <template>
-  <div class="w-full max-w-content mx-auto">
+  <div class="w-full mx-auto">
     <div class="search-container">
       <!-- 主搜索框 -->
       <div class="relative w-full">
-        <div class="relative flex flex-row items-center w-full">
-          <div class="relative w-full">
+        <div class="search-bar">
+          <div class="search-field">
             <!-- 筛选按钮（最左侧） -->
             <button
               type="button"
@@ -126,26 +127,27 @@ const handleSearch = () => {
               :class="[
                 'advanced-toggle-left',
                 showAdvanced && 'active',
-                (includeKeywords.trim() || excludeKeywords.trim()) && 'has-filter'
+                hasActiveFilter && 'has-filter'
               ]"
-              title="高级筛选"
+              :title="hasActiveFilter ? '已启用筛选条件' : '高级筛选'"
+              aria-label="高级筛选"
             >
               <FilterIcon :size="16" />
             </button>
             <input
               v-model="keyword"
               type="text"
-              placeholder="片名、软件、资料"
+              placeholder="搜索电影、剧集、软件或学习资料"
               :disabled="loading"
               @keydown.enter="handleSearch"
-              class="flex h-10 outline-none focus:outline-none rounded-md border bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 w-full text-center pl-12 pr-12 transition-all duration-300 border-primary/20 hover:border-primary/40 shadow-sm hover:shadow-md focus-visible:shadow-lg focus-visible:ring-primary/30 focus-visible:ring-offset-0 focus-visible:border-primary/60"
+              class="search-input"
             />
             <!-- 搜索按钮 -->
             <button
               type="button"
               @click="handleSearch"
               :disabled="loading || !keyword.trim()"
-              class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 w-10 absolute right-0 top-0 h-full rounded-l-none transition-all duration-300 border-0 hover:border hover:border-l-0 hover:border-primary/40 hover:bg-primary hover:text-primary-foreground hover:scale-[1.03]"
+              class="search-submit"
             >
               <component 
                 :is="loading ? Icons.Loading() : Icons.Send()" 
@@ -154,6 +156,7 @@ const handleSearch = () => {
                   loading && 'animate-spin'
                 ]"
               />
+              <span>{{ loading ? '搜索中' : '搜索' }}</span>
             </button>
           </div>
         </div>
@@ -227,6 +230,77 @@ const handleSearch = () => {
   width: 100%;
 }
 
+.search-bar,
+.search-field {
+  position: relative;
+  width: 100%;
+}
+
+.search-input {
+  width: 100%;
+  height: 3.45rem;
+  padding: 0 7rem 0 3.4rem;
+  border: 0;
+  border-radius: 0.8rem;
+  outline: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 1rem;
+  font-weight: 520;
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+  transition: box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.search-input::placeholder {
+  color: hsl(var(--muted-foreground) / 0.82);
+}
+
+.search-input:hover {
+  box-shadow: inset 0 0 0 1px hsl(var(--border-hover));
+}
+
+.search-input:focus {
+  background: hsl(var(--card));
+  box-shadow: inset 0 0 0 1.5px hsl(var(--primary)), 0 0 0 4px hsl(var(--primary) / 0.1);
+}
+
+.search-input:disabled {
+  opacity: 0.7;
+}
+
+.search-submit {
+  position: absolute;
+  top: 0.42rem;
+  right: 0.42rem;
+  height: calc(100% - 0.84rem);
+  min-width: 5.4rem;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 0.62rem;
+  color: white;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent-secondary)));
+  box-shadow: 0 6px 16px hsl(var(--primary) / 0.25);
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.search-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px hsl(var(--primary) / 0.32);
+}
+
+.search-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+
 /* 高级选项切换按钮（左侧） */
 .advanced-toggle-left {
   position: absolute;
@@ -235,12 +309,14 @@ const handleSearch = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 6px 0 0 6px;
+  width: 2.45rem;
+  height: 2.45rem;
+  top: 0.5rem;
+  left: 0.5rem;
+  border-radius: 0.62rem;
   background: transparent;
   border: none;
-  border-right: 1px solid hsl(var(--border));
+  border: 0;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
   transition: all 0.2s ease;
@@ -253,8 +329,8 @@ const handleSearch = () => {
 }
 
 .advanced-toggle-left.active {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
 }
 
 .advanced-toggle-left.has-filter {
@@ -278,9 +354,37 @@ const handleSearch = () => {
 .advanced-panel {
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
-  border-radius: 8px;
+  border-radius: 0.9rem;
   padding: 1rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 520px) {
+  .search-input {
+    height: 3.2rem;
+    padding-right: 3.3rem;
+    padding-left: 3.15rem;
+    font-size: 0.9rem;
+  }
+
+  .search-submit {
+    min-width: 2.45rem;
+    width: 2.45rem;
+    padding: 0;
+  }
+
+  .search-submit span {
+    display: none;
+  }
+
+  .advanced-toggle-left {
+    top: 0.38rem;
+    left: 0.38rem;
+  }
+
+  .label-hint {
+    display: none;
+  }
 }
 
 .advanced-content {
@@ -528,4 +632,69 @@ const handleSearch = () => {
     white-space: nowrap;
   }
 }
-</style> 
+
+/* 紧凑工具栏 */
+.search-input {
+  height: 2.5rem;
+  padding: 0 5.25rem 0 2.85rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.search-input:hover {
+  border-color: hsl(var(--border-hover));
+  box-shadow: none;
+}
+
+.search-input:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.08);
+}
+
+.search-submit {
+  top: 0.25rem;
+  right: 0.25rem;
+  height: 2rem;
+  min-width: 4.4rem;
+  padding: 0 0.75rem;
+  border-radius: 0.35rem;
+  background: hsl(var(--primary));
+  box-shadow: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.search-submit:hover:not(:disabled) {
+  transform: none;
+  background: hsl(var(--primary) / 0.9);
+  box-shadow: none;
+}
+
+.advanced-toggle-left {
+  width: 2.25rem;
+  height: 2.25rem;
+  top: 0.125rem;
+  left: 0.125rem;
+  border-radius: 0.35rem;
+}
+
+.advanced-panel {
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  box-shadow: none;
+}
+
+@media (max-width: 520px) {
+  .search-input {
+    height: 2.5rem;
+  }
+
+  .advanced-toggle-left {
+    top: 0.125rem;
+    left: 0.125rem;
+  }
+}
+</style>

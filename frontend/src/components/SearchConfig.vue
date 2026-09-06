@@ -4,6 +4,7 @@ import { type HealthStatus } from '@/api';
 import type { DetectionSettings } from '@/types';
 import { loadDetectionSettings, persistDetectionSettings } from '@/utils/linkDetection';
 import { loadLocal, saveLocal } from '@/utils/storage';
+import { appPath } from '@/utils/appPath';
 
 const props = defineProps<{
   backendHealth: HealthStatus | null;
@@ -145,7 +146,7 @@ const resetToDefault = () => {
 
 const loadPluginPing = async (refresh = false) => {
   try {
-    const res = await fetch('/api/plugin-ping' + (refresh ? '?refresh=1' : ''), { cache: 'no-store' });
+    const res = await fetch(appPath('/api/plugin-ping') + (refresh ? '?refresh=1' : ''), { cache: 'no-store' });
     const data = await res.json();
     pluginPing.value = data.plugins || {};
     if (!data.ready) {
@@ -579,4 +580,3 @@ onMounted(() => {
   color: hsl(var(--foreground));
 }
 </style>
-

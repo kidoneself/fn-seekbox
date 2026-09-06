@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   
   return {
+    // Production is served by the authenticated fnOS unified gateway.
+    // Keep the development base at / so the existing Vite proxies still work.
+    base: env.VITE_APP_BASE || (mode === 'production' ? '/app/fn-seekbox/' : '/'),
     plugins: [
       vue({
         template: {

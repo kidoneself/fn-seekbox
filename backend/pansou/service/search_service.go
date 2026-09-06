@@ -1240,6 +1240,10 @@ func (s *SearchService) searchPlugins(keyword string, plugins []string, forceRef
 		}
 	}
 
+	// 异步插件可能仍在后台更新返回值内的切片。先做深拷贝，
+	// 避免 gob 序列化时与插件并发改动 Links/Tags/Images 而崩溃。
+	cacheResults := cloneSearchResults(allResults)
+
 	// 恢复主程序缓存更新：确保最终合并结果被正确缓存
 	if cacheInitialized && config.AppConfig.CacheEnabled {
 		go func(res []model.SearchResult, kw string, key string) {
@@ -1261,10 +1265,21 @@ func (s *SearchService) searchPlugins(keyword string, plugins []string, forceRef
 						key, len(res))
 				}
 			}
-		}(allResults, keyword, cacheKey)
+		}(cacheResults, keyword, cacheKey)
 	}
 
 	return allResults, nil
+}
+
+func cloneSearchResults(results []model.SearchResult) []model.SearchResult {
+	cloned := make([]model.SearchResult, len(results))
+	for i, result := range results {
+		cloned[i] = result
+		cloned[i].Links = append([]model.Link(nil), result.Links...)
+		cloned[i].Tags = append([]string(nil), result.Tags...)
+		cloned[i].Images = append([]string(nil), result.Images...)
+	}
+	return cloned
 }
 
 // GetPluginManager 获取插件管理器

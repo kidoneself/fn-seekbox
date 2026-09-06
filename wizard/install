@@ -4,18 +4,7 @@
     "items": [
       {
         "type": "tips",
-        "helpText": "安装后点击桌面图标即可搜索网盘资源。"
-      },
-      {
-        "type": "text",
-        "field": "APP_PORT",
-        "label": "访问端口",
-        "initValue": "12668",
-        "helpText": "Web 界面端口，需未被其他应用占用。",
-        "rules": [
-          { "required": true, "message": "请输入端口号" },
-          { "pattern": "^[0-9]+$", "message": "端口号必须为数字" }
-        ]
+        "helpText": "安装后从飞牛桌面打开。应用通过统一网关复用 fnOS 登录状态，不会暴露独立访问端口。"
       },
       {
         "type": "text",

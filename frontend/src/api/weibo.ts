@@ -7,9 +7,10 @@ import type {
   WeiboUserIdsResponse,
   WeiboSearchResponse
 } from '@/types/weibo'
+import { appPath } from '@/utils/appPath'
 
 const weiboApi = axios.create({
-  baseURL: '/weibo',
+  baseURL: appPath('/weibo'),
   timeout: 15000
 })
 

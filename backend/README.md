@@ -10,7 +10,7 @@
 
 ## 本仓库相对上游的改动
 
-- **插件-only**：已移除 Telegram 搜索与 JWT 认证；仅保留 26 个启用插件。
+- **插件-only**：已移除 Telegram 搜索与应用自建 JWT；仅保留 26 个启用插件。用户登录鉴权由 fnOS 统一网关负责。
 - `plugin/ikantv/ikantv.go`：`priority` **3 → 1**（等级 1 = 1000 分，搜索结果优先）
 - Health：`channels: []`、`channels_count: 0`、`auth_enabled: false`
 

@@ -7,10 +7,11 @@ import type {
   QQPDChannelsResponse,
   QQPDSearchResponse
 } from '@/types/qqpd'
+import { appPath } from '@/utils/appPath'
 
 // 创建QQPD API实例
 const qqpdApi = axios.create({
-  baseURL: '/qqpd',  // 代理到后端 http://localhost:8888/qqpd
+  baseURL: appPath('/qqpd'),
   timeout: 15000
 })
 
@@ -163,4 +164,3 @@ export default {
   testSearch,
   getHashByQQNumber
 }
-

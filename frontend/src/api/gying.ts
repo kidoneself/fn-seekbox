@@ -6,13 +6,14 @@ import type {
   GyingLogoutResponse,
   GyingSearchResponse
 } from '@/types/gying'
+import { appPath } from '@/utils/appPath'
 
 // 创建Gying API实例
 const GYING_DEFAULT_TIMEOUT = 30000
 const GYING_LONG_TIMEOUT = 120000
 
 const gyingApi = axios.create({
-  baseURL: '/gying',  // 代理到后端 http://localhost:8888/gying
+  baseURL: appPath('/gying'),
   timeout: GYING_DEFAULT_TIMEOUT
 })
 

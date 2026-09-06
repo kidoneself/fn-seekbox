@@ -5,9 +5,10 @@ import type {
   PanlianLogoutResponse,
   PanlianSearchResponse
 } from '@/types/panlian'
+import { appPath } from '@/utils/appPath'
 
 const panlianApi = axios.create({
-  baseURL: '/panlian',
+  baseURL: appPath('/panlian'),
   timeout: 15000
 })
 
