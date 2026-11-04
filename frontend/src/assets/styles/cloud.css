@@ -1,0 +1,58 @@
+.cloud-overlay { position: fixed; inset: 0; z-index: 10030; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgb(15 23 42 / .45); backdrop-filter: blur(6px); }
+.cloud-dialog { width: min(100%, 620px); max-height: 90dvh; display: flex; flex-direction: column; border: 1px solid hsl(var(--border)); border-radius: .9rem; background: hsl(var(--card)); color: hsl(var(--foreground)); box-shadow: 0 24px 64px rgb(15 23 42 / .2); font-size: .83rem; }
+.cloud-dialog.wide { width: min(100%, 820px); }
+.cloud-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.2rem; border-bottom: 1px solid hsl(var(--border)); }
+.cloud-header h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+.cloud-header p { margin: .3rem 0 0; color: hsl(var(--muted-foreground)); font-size: .76rem; }
+.cloud-close { border: 0; border-radius: .35rem; background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; font-size: 1.5rem; line-height: 1; padding: .1rem .3rem; }
+.cloud-body { padding: 1.1rem 1.2rem; overflow-y: auto; min-height: 0; }
+.cloud-footer, .cloud-actions, .cloud-row { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.cloud-footer { justify-content: flex-end; padding: .85rem 1.2rem; border-top: 1px solid hsl(var(--border)); }
+.cloud-button { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2rem; padding: .4rem .7rem; border: 1px solid hsl(var(--border)); border-radius: .4rem; background: hsl(var(--card)); color: hsl(var(--foreground)); font-size: .78rem; font-weight: 560; cursor: pointer; text-decoration: none; }
+.cloud-button:hover { background: hsl(var(--muted)); }
+.cloud-button.primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
+.cloud-button.danger { color: hsl(var(--destructive)); }
+.cloud-button:disabled, .cloud-close:disabled { cursor: default; opacity: .5; }
+.cloud-button:focus-visible, .cloud-close:focus-visible, .cloud-input:focus-visible, .cloud-folder:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+.cloud-field { display: grid; gap: .4rem; margin-bottom: .95rem; }
+.cloud-field > span, .cloud-field > label { font-size: .78rem; font-weight: 620; }
+.cloud-input { width: 100%; min-width: 0; border: 1px solid hsl(var(--border)); border-radius: .4rem; background: hsl(var(--background)); color: hsl(var(--foreground)); padding: .55rem .65rem; font: inherit; }
+textarea.cloud-input { resize: vertical; min-height: 6rem; }
+.cloud-help { color: hsl(var(--muted-foreground)); font-size: .74rem; line-height: 1.65; overflow-wrap: anywhere; }
+.cloud-note, .cloud-error, .cloud-success { margin: .75rem 0; border-radius: .45rem; padding: .7rem .8rem; font-size: .77rem; line-height: 1.65; overflow-wrap: anywhere; }
+.cloud-note { background: hsl(var(--muted) / .7); color: hsl(var(--muted-foreground)); }
+.cloud-error { background: hsl(var(--destructive) / .07); color: hsl(var(--destructive)); border: 1px solid hsl(var(--destructive) / .2); }
+.cloud-success { background: hsl(var(--primary) / .08); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / .15); }
+.cloud-empty { padding: 1.6rem .75rem; text-align: center; color: hsl(var(--muted-foreground)); line-height: 1.8; }
+.cloud-card { border: 1px solid hsl(var(--border)); border-radius: .55rem; padding: .85rem; margin: .7rem 0; }
+.cloud-card h3 { margin: 0; font-size: .86rem; font-weight: 650; overflow-wrap: anywhere; }
+.cloud-card p { margin: .45rem 0; }
+.cloud-card .cloud-row { justify-content: space-between; align-items: start; }
+.cloud-badge { flex-shrink: 0; border-radius: 99px; padding: .16rem .45rem; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: .68rem; }
+.cloud-badge.ready { background: hsl(var(--primary) / .09); color: hsl(var(--primary)); }
+.cloud-badge.error { background: hsl(var(--destructive) / .07); color: hsl(var(--destructive)); }
+.cloud-tabs { display: flex; gap: .25rem; padding: .55rem 1.2rem 0; border-bottom: 1px solid hsl(var(--border)); }
+.cloud-tab { border: 0; border-bottom: 2px solid transparent; padding: .55rem .65rem; background: transparent; color: hsl(var(--muted-foreground)); font: inherit; cursor: pointer; }
+.cloud-tab.active { border-bottom-color: hsl(var(--primary)); color: hsl(var(--primary)); font-weight: 650; }
+.cloud-summary { margin: 0 0 1rem; padding: .75rem; border-radius: .45rem; background: hsl(var(--muted) / .6); }
+.cloud-summary strong { display: block; font-size: .86rem; overflow-wrap: anywhere; }
+.cloud-summary small { display: block; margin-top: .35rem; color: hsl(var(--muted-foreground)); overflow-wrap: anywhere; }
+.cloud-folder-list { max-height: 12rem; overflow-y: auto; border: 1px solid hsl(var(--border)); border-radius: .4rem; }
+.cloud-folder { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: .6rem .7rem; border: 0; border-bottom: 1px solid hsl(var(--border) / .6); background: transparent; text-align: left; color: hsl(var(--foreground)); font: inherit; cursor: pointer; }
+.cloud-folder:last-child { border-bottom: 0; }
+.cloud-folder:hover { background: hsl(var(--muted)); }
+.cloud-folder span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.cloud-path { display: flex; gap: .45rem; align-items: center; margin: .5rem 0; color: hsl(var(--muted-foreground)); font-size: .74rem; overflow-wrap: anywhere; }
+.cloud-path > span { min-width: 0; flex: 1; }
+.cloud-interval { width: 7rem; }
+@media (max-width: 600px) { .cloud-overlay { padding: .5rem; } .cloud-dialog { max-height: 94dvh; border-radius: .65rem; } .cloud-header, .cloud-body { padding: .9rem; } .cloud-footer { padding: .75rem .9rem; } .cloud-tabs { padding-inline: .6rem; } .cloud-card .cloud-actions { width: 100%; margin-top: .4rem; } }
+
+.cloud-qr-login { padding: 1.1rem 0 .2rem; text-align: center; }
+.cloud-qr-login img { display: block; width: 240px; height: 240px; max-width: 100%; object-fit: contain; margin: 0 auto; padding: .3rem; border: 1px solid hsl(var(--border)); border-radius: .7rem; background: white; }
+.cloud-qr-login p { margin: .75rem auto; max-width: 30rem; font-size: .8rem; }
+.cloud-qr-placeholder { display: grid; place-items: center; width: 240px; height: 180px; margin: auto; border: 1px dashed hsl(var(--border)); border-radius: .7rem; color: hsl(var(--muted-foreground)); font-size: .85rem; }
+
+.cloud-ad-filter { padding: 12px; margin-bottom: 14px; border: 1px solid hsl(var(--border)); border-radius: 6px; }
+.cloud-ad-filter label { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.cloud-ad-filter input { width: 16px; height: 16px; accent-color: hsl(var(--primary)); }
+.cloud-ad-filter p { margin: 6px 0 0; }

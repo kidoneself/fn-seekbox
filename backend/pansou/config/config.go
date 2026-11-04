@@ -118,9 +118,9 @@ func getDefaultConcurrency() int {
 		}
 	}
 
-	// 未指定时默认 26（fn-seekbox 启用插件数）
+	// 未指定时默认 43（fn-seekbox 启用插件数）
 	if pluginCount == 0 {
-		pluginCount = 26
+		pluginCount = 43
 	}
 
 	// 并发数 = 插件数 + 10

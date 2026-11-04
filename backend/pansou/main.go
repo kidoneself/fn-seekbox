@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/net/netutil"
 
 	"pansou/api"
+	"pansou/cloud"
 	"pansou/config"
 	"pansou/plugin"
 	"pansou/service"
@@ -24,31 +26,48 @@ import (
 	"pansou/util/cache"
 
 	// 以下是插件的空导入，用于触发各插件的init函数，实现自动注册
+	_ "pansou/plugin/aipan"
+	_ "pansou/plugin/clmao"
+	_ "pansou/plugin/clxiong"
+	_ "pansou/plugin/diduan"
 	_ "pansou/plugin/duoduo"
+	_ "pansou/plugin/dygang"
 	_ "pansou/plugin/dyyjpro"
+	_ "pansou/plugin/erxiaopan"
 	_ "pansou/plugin/feikuai"
 	_ "pansou/plugin/gaoqing888"
 	_ "pansou/plugin/gying"
+	_ "pansou/plugin/hjzhencai"
+	_ "pansou/plugin/huban"
 	_ "pansou/plugin/hunhepan"
 	_ "pansou/plugin/ikantv"
 	_ "pansou/plugin/jutoushe"
 	_ "pansou/plugin/kkv"
+	_ "pansou/plugin/leso"
+	_ "pansou/plugin/libvio"
 	_ "pansou/plugin/lingjisp"
 	_ "pansou/plugin/lou1"
+	_ "pansou/plugin/meitizy"
 	_ "pansou/plugin/melost"
+	_ "pansou/plugin/miosou"
+	_ "pansou/plugin/muou"
 	_ "pansou/plugin/ouge"
 	_ "pansou/plugin/panlian"
 	_ "pansou/plugin/qqpd"
 	_ "pansou/plugin/quark4k"
 	_ "pansou/plugin/quarksoo"
 	_ "pansou/plugin/quarktv"
+	_ "pansou/plugin/shandian"
 	_ "pansou/plugin/sousou"
 	_ "pansou/plugin/thepiratebay"
 	_ "pansou/plugin/wanou"
 	_ "pansou/plugin/weibo"
 	_ "pansou/plugin/xb6v"
+	_ "pansou/plugin/xiaokupan"
+	_ "pansou/plugin/xiaoyu"
 	_ "pansou/plugin/xiaozhang"
 	_ "pansou/plugin/yunso"
+	_ "pansou/plugin/zhizhen"
 	_ "pansou/plugin/zxzj"
 )
 
@@ -120,6 +139,22 @@ func startServer() {
 
 	// 设置路由
 	router := api.SetupRouter(searchService)
+
+	// Keep account credentials and transfer journals outside the disposable
+	// search cache. Failure of this optional module must not disable search.
+	cloudPath := strings.TrimSpace(os.Getenv("SEEKBOX_CLOUD_PATH"))
+	if cloudPath == "" {
+		cloudPath = filepath.Join(filepath.Dir(config.AppConfig.CachePath), "cloud")
+	}
+	cloudService, cloudErr := cloud.NewService(cloudPath, []cloud.Provider{
+		cloud.NewBaiduProvider(), cloud.NewQuarkProvider(), cloud.NewXunleiProvider(),
+	})
+	if cloudErr != nil {
+		log.Printf("网盘模块初始化失败: %v", cloudErr)
+	} else {
+		defer cloudService.Close()
+	}
+	api.RegisterCloudRoutes(router, cloudService)
 
 	// 获取端口配置
 	port := config.AppConfig.Port

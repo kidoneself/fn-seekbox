@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import type { HealthStatus, SearchParams } from '@/api';
 import type { FilterConfig } from '@/types';
 import { Icons } from '@/components/ui';
 import FilterIcon from '@/components/icons/FilterIcon.vue';
-import { loadLocal, saveLocal } from '@/utils/storage';
+import { loadLocal, saveLocal, loadPluginSelection } from '@/utils/storage';
 
 const SEARCH_HISTORY_KEY = 'search_history';
 const MAX_HISTORY_ITEMS = 8;
@@ -49,7 +49,7 @@ const loadUserConfig = () => {
     const savedDiskTypes = loadLocal('disk_types');
     if (savedPlugins !== null) {
       return {
-        plugins: savedPlugins ? JSON.parse(savedPlugins) : [],
+        plugins: loadPluginSelection(props.backendHealth?.plugins),
         cloudTypes: savedDiskTypes ? JSON.parse(savedDiskTypes) : undefined
       };
     }
@@ -102,6 +102,17 @@ const handleSearch = (historyKeyword?: string) => {
 
   emit('search', params);
 };
+
+const reset = () => {
+  keyword.value = '';
+  includeKeywords.value = '';
+  excludeKeywords.value = '';
+  showAdvanced.value = false;
+  inputFocused.value = false;
+  nextTick(() => searchInput.value?.focus());
+};
+
+defineExpose({ reset });
 
 const handleBlur = () => {
   window.setTimeout(() => {

@@ -16,8 +16,8 @@ GATEWAY_PREFIX="/app/fn-seekbox"
 BACKEND_HOST="127.0.0.1"
 BACKEND_PORT="18888"
 
-# 飞牛向导空字符串不会用镜像默认值；bash 的 :- 会。这 26 个是 NAS 直连实测能注册的。
-DEFAULT_PLUGINS="ikantv,dyyjpro,duoduo,feikuai,gaoqing888,gying,hunhepan,jutoushe,kkv,lingjisp,lou1,melost,ouge,panlian,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,wanou,weibo,xb6v,xiaozhang,yunso,zxzj"
+# 飞牛向导空字符串不会用镜像默认值；bash 的 :- 会。保留原有 26 个来源，并新增 17 个 NAS 直连试搜通过的来源。
+DEFAULT_PLUGINS="ikantv,dyyjpro,duoduo,feikuai,gaoqing888,gying,hunhepan,jutoushe,kkv,lingjisp,lou1,melost,ouge,panlian,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,wanou,weibo,xb6v,xiaozhang,yunso,zxzj,aipan,clmao,clxiong,diduan,dygang,erxiaopan,hjzhencai,huban,leso,libvio,meitizy,miosou,muou,shandian,xiaokupan,xiaoyu,zhizhen"
 
 log_msg() {
     mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
@@ -40,6 +40,9 @@ status() {
 }
 
 export_runtime_env() {
+    # fnOS can start package scripts without an exported PATH. Include the
+    # declared Node.js dependency so Go and the login helper resolve it too.
+    export PATH="/var/apps/nodejs_v22/target/bin:${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}"
     if [ -z "${ENABLED_PLUGINS}" ]; then
         ENABLED_PLUGINS="${DEFAULT_PLUGINS}"
     fi
@@ -56,6 +59,35 @@ export_runtime_env() {
     export PROXY
     export TZ="${TZ:-Asia/Shanghai}"
     export WEBROOT GATEWAY_SOCKET GATEWAY_PREFIX
+}
+
+wait_gateway_ready() {
+    local gateway_pid="$1" backend_pid="$2"
+    local deadline=$((SECONDS + 30)) remaining probe_timeout
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        if ! check_pid "$gateway_pid" || ! check_pid "$backend_pid"; then
+            return 2
+        fi
+        if [ -S "$GATEWAY_SOCKET" ]; then
+            remaining=$((deadline - SECONDS))
+            [ "$remaining" -le 0 ] && break
+            probe_timeout=2
+            [ "$remaining" -lt "$probe_timeout" ] && probe_timeout="$remaining"
+            # A socket can exist before Python begins serving requests. Probe
+            # the complete local gateway -> backend path before reporting ready.
+            if curl -sf --noproxy '*' --max-time "$probe_timeout" \
+                --unix-socket "$GATEWAY_SOCKET" \
+                -H 'X-Trim-Userid: fn-seekbox-startup' \
+                "http://localhost${GATEWAY_PREFIX}/api/health" >/dev/null 2>&1; then
+                if check_pid "$gateway_pid" && check_pid "$backend_pid"; then
+                    return 0
+                fi
+                return 2
+            fi
+        fi
+        [ "$SECONDS" -lt "$deadline" ] && sleep 1
+    done
+    return 1
 }
 
 start_process() {
@@ -103,11 +135,19 @@ start_process() {
 
     nohup python3 "$GATEWAY" >> "$GATEWAY_LOG" 2>&1 &
     echo $! > "$GATEWAY_PID_FILE"
-    sleep 1
-
-    if ! status || [ ! -S "$GATEWAY_SOCKET" ]; then
-        echo "网关启动失败，见 ${GATEWAY_LOG}" > "${TRIM_TEMP_LOGFILE}"
-        log_msg "ERROR: gateway failed"
+    local gateway_pid backend_pid gateway_result
+    gateway_pid=$(cat "$GATEWAY_PID_FILE")
+    backend_pid=$(cat "$BACKEND_PID_FILE")
+    wait_gateway_ready "$gateway_pid" "$backend_pid"
+    gateway_result=$?
+    if [ "$gateway_result" -ne 0 ]; then
+        if [ "$gateway_result" -eq 2 ]; then
+            echo "网关就绪前应用进程已退出，见 ${GATEWAY_LOG} 和 ${BACKEND_LOG}" > "${TRIM_TEMP_LOGFILE}"
+            log_msg "ERROR: gateway or backend exited before gateway readiness"
+        else
+            echo "网关启动超时（30 秒），见 ${GATEWAY_LOG}" > "${TRIM_TEMP_LOGFILE}"
+            log_msg "ERROR: gateway health timeout after 30 seconds"
+        fi
         stop_process
         return 1
     fi
@@ -116,26 +156,29 @@ start_process() {
 }
 
 stop_process() {
-    local pid
-    for pid in $(cat "$GATEWAY_PID_FILE" "$BACKEND_PID_FILE" 2>/dev/null); do
+    local pid gateway_pid backend_pid
+    gateway_pid=$(cat "$GATEWAY_PID_FILE" 2>/dev/null || true)
+    backend_pid=$(cat "$BACKEND_PID_FILE" 2>/dev/null || true)
+    for pid in "$gateway_pid" "$backend_pid"; do
         if check_pid "$pid"; then
             kill -TERM "$pid" 2>/dev/null || true
         fi
     done
+    # The gateway usually exits first. Wait while either app process is alive
+    # so the backend can finish cache writes and close its cloud journal.
+    # Its cache shutdown budget is 10s plus the HTTP shutdown budget of 2s.
     local n=0
-    while status && [ "$n" -lt 8 ]; do
+    while { check_pid "$gateway_pid" || check_pid "$backend_pid"; } && [ "$n" -lt 20 ]; do
         sleep 1
         n=$((n + 1))
     done
-    for pid in $(cat "$GATEWAY_PID_FILE" "$BACKEND_PID_FILE" 2>/dev/null); do
+    for pid in "$gateway_pid" "$backend_pid"; do
         if check_pid "$pid"; then
             kill -KILL "$pid" 2>/dev/null || true
         fi
     done
-    # 兜底：按端口清掉残留的本机回环后端。
-    if command -v fuser >/dev/null 2>&1; then
-        fuser -k "${BACKEND_PORT}/tcp" >/dev/null 2>&1 || true
-    fi
+    # Only the application-recorded PIDs are stopped. A port number alone
+    # does not establish ownership of a process.
     [ -S "$GATEWAY_SOCKET" ] && rm -f "$GATEWAY_SOCKET"
     rm -f "$GATEWAY_PID_FILE" "$BACKEND_PID_FILE"
     log_msg "stopped"

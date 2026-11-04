@@ -2,7 +2,7 @@
   ".url": {
     "fn-seekbox.main": {
       "title": "小白搜盘",
-      "icon": "images/icon-{0}.png",
+      "icon": "images/matrix-icon-{0}.png",
       "type": "iframe",
       "protocol": "",
       "gatewayPrefix": "/app/fn-seekbox",

@@ -67,7 +67,7 @@ export const getHealth = async (): Promise<HealthStatus> => {
 };
 
 // 搜索API
-export const search = async (params: SearchParams): Promise<SearchResponse> => {
+export const search = async (params: SearchParams, signal?: AbortSignal): Promise<SearchResponse> => {
   // 添加ext参数，包含referer信息
   const searchParams = {
     ...params,
@@ -76,6 +76,7 @@ export const search = async (params: SearchParams): Promise<SearchResponse> => {
   
   const response = await api.get<ApiResponse<SearchResponse>>('/search', {
     params: searchParams,
+    signal,
     timeout: 180000
   });
   

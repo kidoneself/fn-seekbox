@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import QRCode from 'qrcode';
+import { providerLogos } from '@/utils/providerLogos';
 import { inspectVisibleLinks } from '@/api';
+import { supportedCloudProvider, type CloudMode, type CloudTarget } from '@/api/cloud';
 import type {
   DetectionSettings,
   LinkCheckItem,
@@ -21,6 +23,8 @@ import {
   saveCachedLinkHealth,
 } from '@/utils/linkDetection';
 
+const diskLogo = (type: string) => supportedCloudProvider(type) ? providerLogos[type] : undefined;
+
 const props = defineProps<{
   mergedResults: MergedResults;
   loading: boolean;
@@ -28,8 +32,40 @@ const props = defineProps<{
   isActivelySearching: boolean;
 }>();
 
+const emit = defineEmits<{ 'cloud-action': [target: CloudTarget] }>();
+const openCloudAction = (item: MergedResultItem, mode: CloudMode) => {
+  if (!supportedCloudProvider(activeTab.value)) return;
+  emit('cloud-action', { provider: activeTab.value, title: item.note, url: item.url, password: item.password, mode });
+  closeTitleDetail();
+};
+
 // 当前激活的标签
 const activeTab = ref('');
+const tabsRef = ref<HTMLElement | null>(null);
+let tabChosenByUser = false;
+const selectTab = (type: string) => {
+  tabChosenByUser = true;
+  activeTab.value = type;
+};
+const revealActiveTab = () => {
+  const tabs = tabsRef.value;
+  const selected = tabs?.querySelector<HTMLElement>('.tab-button.active');
+  if (!tabs || !selected) return;
+  const viewport = tabs.getBoundingClientRect();
+  const button = selected.getBoundingClientRect();
+  if (button.left < viewport.left + 8) tabs.scrollLeft += button.left - viewport.left - 8;
+  else if (button.right > viewport.right - 8) tabs.scrollLeft += button.right - viewport.right + 8;
+};
+const scrollTabs = (event: WheelEvent) => {
+  const tabs = tabsRef.value;
+  if (!tabs || event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+  const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? tabs.clientWidth : 1);
+  const end = tabs.scrollWidth - tabs.clientWidth;
+  if ((delta > 0 && tabs.scrollLeft < end - 1) || (delta < 0 && tabs.scrollLeft > 0)) {
+    event.preventDefault();
+    tabs.scrollLeft += delta;
+  }
+};
 // 当前标签页的数据
 const currentTabData = ref<MergedResultItem[]>([]);
 // 虚拟列表显示的数据
@@ -79,9 +115,12 @@ const inFlightKeys = new Set<string>();
 
 // 计算所有可用的网盘类型
 const diskTypes = computed(() => {
+  const preferred = ['xunlei', 'quark', 'baidu', '115', 'uc'];
   return Object.keys(props.mergedResults || {}).sort((a, b) => {
+    const rank = (type: string) => preferred.includes(type) ? preferred.indexOf(type) : preferred.length;
+    const priorityDifference = rank(a) - rank(b);
     const countDifference = (props.mergedResults[b]?.length || 0) - (props.mergedResults[a]?.length || 0);
-    return countDifference || a.localeCompare(b);
+    return priorityDifference || countDifference || a.localeCompare(b);
   });
 });
 
@@ -371,7 +410,7 @@ watch(
       nextTick(() => {
         // 如果当前没有选中标签，或者当前选中的标签在新数据中不存在，则选择第一个标签
         const availableTypes = diskTypes.value;
-        if (!activeTab.value || !availableTypes.includes(activeTab.value)) {
+        if (!tabChosenByUser || !activeTab.value || !availableTypes.includes(activeTab.value)) {
           activeTab.value = availableTypes[0] || '';
         }
         updateCurrentTabData();
@@ -380,6 +419,7 @@ watch(
     } else {
       // 当没有结果时，清空当前数据
       activeTab.value = '';
+      tabChosenByUser = false;
       currentTabData.value = [];
       visibleItems.value = [];
       resetInspectionQueue();
@@ -395,6 +435,7 @@ watch(
     currentPage.value = 1;
     updateCurrentTabData();
     resetInspectionQueue();
+    nextTick(revealActiveTab);
   }
 );
 
@@ -771,6 +812,7 @@ onUnmounted(() => {
         <span><kbd>Enter</kbd> 搜索</span>
         <span>结果自动按网盘归类</span>
       </div>
+      <slot name="home-accounts" />
     </div>
     
     <!-- 搜索中状态 -->
@@ -796,14 +838,18 @@ onUnmounted(() => {
     <!-- 搜索结果 -->
     <div v-else-if="hasResults" class="results-container">
       <!-- 标签页 -->
-      <div class="tabs">
+      <div ref="tabsRef" class="tabs" role="group" aria-label="按网盘类型筛选结果，可横向滚动" @wheel="scrollTabs">
         <button 
           v-for="type in diskTypes" 
           :key="type"
+          type="button"
           class="tab-button"
+          :aria-pressed="activeTab === type"
+          :aria-label="getDiskName(type) + '，' + (mergedResults[type]?.length || 0) + ' 条结果'"
           :class="{ active: activeTab === type }"
-          @click="activeTab = type"
+          @click="selectTab(type)"
         >
+          <img v-if="diskLogo(type)" :src="diskLogo(type)" class="tab-provider-logo" alt="" width="22" height="22">
           <span>{{ getDiskName(type) }}</span>
           <small>{{ mergedResults[type]?.length || 0 }}</small>
         </button>
@@ -850,6 +896,8 @@ onUnmounted(() => {
             </div>
             
             <div class="result-actions">
+              <button v-if="supportedCloudProvider(activeTab)" type="button" class="result-action result-cloud" title="转存到自己的网盘，仅执行一次" @click="openCloudAction(item, 'transfer')">转存到网盘</button>
+              <button v-if="supportedCloudProvider(activeTab)" type="button" class="result-action result-cloud" title="加入追更，定期检查并转存这个分享的新增文件" @click="openCloudAction(item, 'subscribe')">追更</button>
               <button
                 type="button"
                 class="result-action result-copy"
@@ -928,6 +976,8 @@ onUnmounted(() => {
             </div>
 
             <div class="detail-actions">
+              <button v-if="supportedCloudProvider(activeTab)" type="button" class="detail-copy-btn" @click="openCloudAction(detailItem, 'transfer')">转存到网盘</button>
+              <button v-if="supportedCloudProvider(activeTab)" type="button" class="detail-copy-btn" @click="openCloudAction(detailItem, 'subscribe')">持续追更</button>
               <button
                 type="button"
                 class="detail-copy-btn"
@@ -2311,4 +2361,25 @@ onUnmounted(() => {
   .tabs { min-height: 2.4rem; padding-inline: .3rem; }
   .tab-button { padding: .55rem .55rem .48rem; }
 }
+
+.result-cloud { color: hsl(var(--primary)); border-color: hsl(var(--primary) / .25); }
+.detail-actions { flex-wrap: wrap; }
+@container (max-width: 720px) {
+  .result-item:has(.result-cloud) { grid-template-columns: minmax(0, 1fr); gap: .45rem; }
+  .result-item:has(.result-cloud) .result-rank { display: none; }
+  .result-item:has(.result-cloud) .result-actions { justify-content: flex-end; flex-wrap: wrap; }
+}
+/* Readable categories with complete counts and a clear selected state. */
+.tabs { display: flex; flex-wrap: nowrap; flex: 0 0 auto; gap: 8px; padding: 8px 10px; min-height: 0; max-height: none; overflow-x: auto; overflow-y: hidden; background: #f6f8fa; scrollbar-width: thin; scrollbar-color: #b9c6d2 transparent; }
+.tabs::-webkit-scrollbar { display: block; height: 5px; }
+.tabs::-webkit-scrollbar-thumb { background: #b9c6d2; border-radius: 3px; }
+.tab-button { flex: 0 0 auto; min-width: 110px; min-height: 44px; justify-content: flex-start; gap: 9px; padding: 8px 10px; border: 1px solid #d5dde5; border-radius: 7px; background: white; color: #334155; font-size: 14px; font-weight: 600; box-shadow: none; }
+.tab-button:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); background: hsl(var(--primary) / .04); }
+.tab-button small { min-width: 30px; margin-left: auto; padding: 4px 7px; border-radius: 5px; color: #334155; background: #e9eef3; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.tab-button.active { color: hsl(var(--primary-foreground)); background: hsl(var(--primary)); border-color: hsl(var(--primary)); box-shadow: none; }
+.tab-button.active small { color: hsl(var(--primary)); background: white; }
+.tab-button.active::after { display: none; }
+.tab-provider-logo { width: 22px; height: 22px; flex-shrink: 0; object-fit: contain; border-radius: 5px; background: white; }
+.tab-button:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+@container(max-width:620px) { .tabs { gap: 6px; padding: 8px; } .tab-button { min-width: 102px; width: auto; min-height: 44px; gap: 6px; padding: 8px; font-size: 13px; } .tab-button small { min-width: 24px; padding: 3px 4px; font-size: 12px; } .tab-provider-logo { width: 18px; height: 18px; } }
 </style>

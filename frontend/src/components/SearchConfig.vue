@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { type HealthStatus } from '@/api';
 import type { DetectionSettings } from '@/types';
 import { loadDetectionSettings, persistDetectionSettings } from '@/utils/linkDetection';
-import { loadLocal, saveLocal } from '@/utils/storage';
+import { loadLocal, saveLocal, loadPluginSelection } from '@/utils/storage';
 import { appPath } from '@/utils/appPath';
 
 const props = defineProps<{
@@ -89,14 +89,9 @@ const normalizeDiskTypes = (saved: string[]) => {
 
 const loadConfig = () => {
   try {
-    const savedPlugins = loadLocal('plugins');
     const savedDiskTypes = loadLocal('disk_types');
 
-    if (savedPlugins) {
-      selectedPlugins.value = JSON.parse(savedPlugins) || [];
-    } else if (healthData.value?.plugins) {
-      selectedPlugins.value = [...healthData.value.plugins];
-    }
+    selectedPlugins.value = loadPluginSelection(healthData.value?.plugins);
 
     if (savedDiskTypes) {
       selectedDiskTypes.value = normalizeDiskTypes(JSON.parse(savedDiskTypes) || []);

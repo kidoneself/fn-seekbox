@@ -6,7 +6,7 @@
 | --- | --- |
 | 显示名 | 小白搜盘 |
 | 包名 | `fn-seekbox` |
-| 当前版本 | 1.2.3 |
+| 当前版本 | 1.5.9 |
 | 平台 | x86（amd64）/ ARM（arm64） |
 | 访问方式 | fnOS 统一网关（需登录） |
 | 维护者 | `kidoneself` |
@@ -17,9 +17,11 @@
 ## 特性
 
 - **fnOS 原生应用**：以 FPK 形式安装，无需 Docker 容器
-- **多来源聚合**：内置 26 个可配置搜索插件，并提供网络连通与试搜检测
+- **多来源聚合**：内置 43 个可配置搜索插件，并提供网络连通与试搜检测
 - **分类展示**：按网盘类型汇总搜索结果，支持 JSON / TXT 导出
 - **高效操作**：搜索历史、结果一键复制、直接打开链接、JSON / TXT 批量导出
+- **网盘转存与追更**：百度、夸克、迅雷结果支持一次转存或持续追更，提供账号与任务管理；接入方式、当前限制和验证范围见 [使用说明](docs/cloud-transfer-and-follow.md)
+- **首页账号配置**：统一顶部导航进入完整网盘页面，连接百度、夸克、迅雷；首页账号区下方横向展示项目入口、公众号和裁切后的赞赏码
 - **响应式界面**：小窗口自动精简次要信息，浏览器宽屏充分利用横向空间
 - **统一鉴权**：通过 fnOS 统一网关复用 NAS 登录状态，内部后端仅监听 `127.0.0.1`，不向局域网暴露 Web 端口
 - **权限隔离**：以独立应用用户运行，不使用 root 权限启动服务
@@ -30,6 +32,7 @@
 
 - 飞牛 fnOS **1.1.8** 及以上
 - **x86 / amd64** 或 **ARM / arm64** NAS
+- 应用中心安装 Node.js v22（安装包声明依赖），迅雷扫码使用随包 Chromium
 - 可访问外网的插件站点（可选配置 HTTP/SOCKS5 代理）
 
 ---
@@ -38,7 +41,7 @@
 
 ### 方式一：安装 FPK（推荐）
 
-1. 根据 NAS 架构下载 `fn-seekbox-1.2.3-x86.fpk` 或 `fn-seekbox-1.2.3-arm.fpk`
+1. 准备对应 NAS 架构的 FPK：x86 为 `fn-seekbox-1.5.9-x86.fpk`；ARM 可按下方构建步骤生成 `fn-seekbox-1.5.9-arm.fpk`
 2. 打开 **应用中心** → **手动安装**，选择 FPK 文件
 3. 安装向导里按需填写出站代理；不需要代理可留空
 4. 安装完成后，在桌面点击 **小白搜盘** 图标
@@ -102,7 +105,7 @@ sudo appcenter-cli start fn-seekbox
 # → 覆盖 app/bin/seekbox
 ```
 
-需要本机 **Go 1.24+**，或已启动的 **Docker**。
+需要本机 **Go（默认自动使用 1.24.9 工具链）**，或已启动的 **Docker**。ARM64 使用 `GOARCH=arm64 ./scripts/build-seekbox.sh`，输出到 `build/seekbox-linux-arm64`。
 
 ### 改网关 / 生命周期
 
@@ -115,6 +118,21 @@ sudo appcenter-cli start fn-seekbox
 
 本机需安装 [fnpack](https://static2.fnnas.com/fnpack/)。项目自带 `pack.sh`，会在临时目录里只复制打包所需文件，**不会**把 `backend/`、`frontend/` 源码打进包。
 
+扫码运行库来自公开的 `playwright-core@1.57.0` 和 Chromium 发行版，不包含外部登录服务或其配置。首次单架构打包先运行 `./scripts/prepare-qr-runtime.sh`。运行库与后端都必须匹配 NAS 架构。
+
+同时构建两个架构（会分别下载对应架构的 Chromium；还需 Node.js/npm、rsync、Python 3、sha256sum，并先安装前端依赖）：
+
+```bash
+./scripts/build-all.sh
+# fnpack 不在 PATH 时：FNPACK=/path/to/fnpack ./scripts/build-all.sh
+# 输出：fn-seekbox-1.5.9-x86.fpk、fn-seekbox-1.5.9-arm.fpk
+# 校验文件：build/fn-seekbox-1.5.9-SHA256SUMS.txt
+```
+
+两个包分别包含 amd64 / arm64 静态后端及相应架构的扫码浏览器，前端相同。1.5.9 本次验证 x86，ARM 扫码未在实机验证。打包时会校验 ELF 架构，防止程序与包的平台标记不一致。1.3.5 已通过 x86 原生和 ARM64 QEMU 下的启动、搜索、网关鉴权及静态资源检查；ARM 飞牛实机安装尚未验证。
+
+单独构建 x86：
+
 ```bash
 # 若改过后端
 ./scripts/build-seekbox.sh
@@ -124,8 +142,10 @@ cd frontend && npm run build && cp -R dist/* ../app/web/ && cd ..
 
 # 打包（提交飞牛用这个 .fpk）
 ./pack.sh
-# 输出：fn-seekbox-1.2.3-x86.fpk
+# 输出：fn-seekbox-1.5.9-x86.fpk
 ```
+
+单独构建 ARM64：先运行 `QR_PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm" ./scripts/prepare-qr-runtime.sh` 下载 ARM 浏览器，再运行 `GOARCH=arm64 ./scripts/build-seekbox.sh`，再运行 `PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm" ./pack.sh`；如修改前端，打包前同样需要更新 `app/web/`。
 
 ---
 
@@ -148,7 +168,8 @@ fn-seekbox/
 │   └── ui/
 ├── frontend/             # Vue 源码（不打进 FPK）
 ├── scripts/
-│   └── build-seekbox.sh  # backend/pansou → app/bin/seekbox
+│   ├── build-seekbox.sh  # 编译指定架构后端
+│   └── build-all.sh      # 前端 + x86 / ARM64 后端及 FPK
 ├── cmd/
 ├── config/
 └── wizard/

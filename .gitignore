@@ -7,9 +7,21 @@
 frontend/node_modules/
 frontend/dist/
 
+# Reproducibly staged QR runtime (public Playwright/Chromium distributions).
+app/auth/node_modules/
+app/auth/chromium/
+
 # 本机 NAS 部署脚本（含内网地址）
 scripts/deploy-to-nas.sh
 scripts/nas-ctl.sh
 
 # 含本机路径的调试笔记，不进公开库
 TESTING.md
+
+# 双架构构建产物及校验清单
+build/
+
+# Personal cloud-drive credentials and transfer state (never ship in FPK).
+**/cloud/credentials.key
+**/cloud/cloud.db
+**/cloud/cloud.db.*

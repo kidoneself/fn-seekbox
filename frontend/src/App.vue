@@ -7,8 +7,12 @@ import ResultTabs from '@/components/ResultTabs.vue';
 import SearchStats from '@/components/SearchStats.vue';
 import SearchConfig from '@/components/SearchConfig.vue';
 import ExportResultsModal from '@/components/ExportResultsModal.vue';
+import CloudCenter from '@/components/CloudCenter.vue';
+import HomeCloudAccounts from '@/components/HomeCloudAccounts.vue';
+import CloudTransferDialog from '@/components/CloudTransferDialog.vue';
+import type { CloudTarget, CloudProvider } from '@/api/cloud';
 import { getDiskTypeName } from '@/utils/diskTypes';
-import { loadLocal, saveLocal } from '@/utils/storage';
+import { loadLocal, saveLocal, loadPluginSelection } from '@/utils/storage';
 import { appPath } from '@/utils/appPath';
 
 // 后端健康状态缓存（应用启动时获取一次）
@@ -36,6 +40,32 @@ const thirdSearchTimeout = ref<number | null>(null);
 const fourthSearchTimeout = ref<number | null>(null);
 const lastSearchParams = ref<SearchParams | null>(null);
 const showExportModal = ref(false);
+const cloudCenterOpen = ref(false);
+const cloudCenterTab = ref<'accounts' | 'subscriptions' | 'jobs'>('accounts');
+const cloudTarget = ref<CloudTarget | null>(null);
+const cloudInitialProvider = ref<CloudProvider | undefined>();
+const cloudAutoConnect = ref(false);
+const cloudRevision = ref(0);
+const workspaceTabs = [{ id: 'accounts', name: '我的网盘' }, { id: 'subscriptions', name: '我的追更' }, { id: 'jobs', name: '转存记录' }] as const;
+const returnToSearch = () => { cloudCenterOpen.value = false; currentPage.value = 'search'; cloudRevision.value++; nextTick(syncMobileSearchLayout); };
+
+const openCloudCenter = (tab: 'accounts' | 'subscriptions' | 'jobs') => {
+  cloudInitialProvider.value = cloudTarget.value?.provider;
+  cloudAutoConnect.value = false;
+  currentPage.value = 'search';
+  cloudCenterTab.value = tab;
+  cloudCenterOpen.value = true;
+};
+const configureCloud = (provider: CloudProvider) => {
+  openCloudCenter('accounts'); cloudInitialProvider.value = provider; cloudAutoConnect.value = true;
+};
+const openCloudTransfer = (target: CloudTarget) => {
+  cloudTarget.value = target;
+};
+const openCloudRecords = (tab: 'subscriptions' | 'jobs') => {
+  cloudTarget.value = null;
+  openCloudCenter(tab);
+};
 const navHeaderRef = ref<HTMLElement | null>(null);
 const mainContentRef = ref<HTMLElement | null>(null);
 const searchResultsBlockRef = ref<HTMLElement | null>(null);
@@ -103,7 +133,7 @@ const checkConfig = () => {
     if (savedPlugins !== null) {
       return {
         channels: [],
-        plugins: savedPlugins ? JSON.parse(savedPlugins) : []
+        plugins: loadPluginSelection(backendHealth.value?.plugins)
       };
     }
     
@@ -122,10 +152,19 @@ const checkConfig = () => {
   }
 };
 
+// 每轮搜索单独取消并校验版本，防止重置或新搜索后旧响应回填。
+let searchGeneration = 0;
+let searchController: AbortController | null = null;
+let loadingTimeout: number | null = null;
+const searchForm = ref<InstanceType<typeof SearchForm> | null>(null);
+
 // 处理搜索
 const handleSearch = async (params: SearchParams) => {
   // 停止之前的更新
   stopUpdate();
+  const generation = searchGeneration;
+  searchController = new AbortController();
+  const signal = searchController.signal;
 
   // 先保存用户输入的原始参数，不带 refresh
   lastSearchParams.value = { ...params };
@@ -166,15 +205,16 @@ const handleSearch = async (params: SearchParams) => {
       };
       
       // 后台预热搜索，仅用于触发后端插件异步缓存，不处理结果
-      search(preloadParams)
+      search(preloadParams, signal)
         .catch(error => {
           console.warn('后台预热搜索失败（不影响主搜索）:', error);
         });
     }
     
     // 先发起第一次搜索请求（显示结果）
-    search(userParams)
+    search(userParams, signal)
       .then(firstResponse => {
+        if (generation !== searchGeneration) return;
         
         if (firstResponse && firstResponse.total !== undefined) {
           // 使用第一次搜索结果进行显示
@@ -205,14 +245,15 @@ const handleSearch = async (params: SearchParams) => {
         }
       })
       .catch(error => {
+        if (generation !== searchGeneration) return;
         console.error('第一次搜索出错:', error);
         loading.value = false;
         isActivelySearching.value = false;
       });
     
     // 设置一个超时，确保即使搜索很慢，UI也不会一直处于加载状态
-    setTimeout(() => {
-      if (loading.value) {
+    loadingTimeout = window.setTimeout(() => {
+      if (generation === searchGeneration && loading.value) {
         loading.value = false;
       }
     }, 5000); // 5秒后如果还在加载，则关闭加载状态
@@ -638,7 +679,7 @@ const syncMobileSearchLayout = () => {
 };
 
 watch(
-  () => [currentPage.value, hasSearched.value, loading.value, searchResults.total, isActivelySearching.value],
+  () => [currentPage.value, cloudCenterOpen.value, hasSearched.value, loading.value, searchResults.total, isActivelySearching.value],
   () => {
     syncMobileSearchLayout();
   },
@@ -653,6 +694,8 @@ const calculateSrcForFullSearch = (): 'plugin' => {
 // 开始第二次搜索
 const startSecondAllSearch = (firstSearchCompleteTime: number) => {
   if (!lastSearchParams.value) return;
+  const generation = searchGeneration;
+  const signal = searchController?.signal;
   
   isUpdating.value = true;
   isActivelySearching.value = true;
@@ -672,13 +715,15 @@ const startSecondAllSearch = (firstSearchCompleteTime: number) => {
   
   // 执行第二次搜索
   const executeSecondSearch = async () => {
+    if (generation !== searchGeneration) return;
     if (!lastSearchParams.value) {
       stopUpdate();
       return;
     }
     
     try {
-      const response = await search(userParams);
+      const response = await search(userParams, signal);
+      if (generation !== searchGeneration) return;
       
       // 更新结果
       if (response && response.total >= searchResults.total) {
@@ -691,6 +736,7 @@ const startSecondAllSearch = (firstSearchCompleteTime: number) => {
       // 开始第三次搜索
       startThirdAllSearch(secondSearchCompleteTime);
     } catch (error) {
+      if (generation !== searchGeneration) return;
       console.error('第二次搜索出错:', error);
       stopUpdate();
     }
@@ -703,6 +749,8 @@ const startSecondAllSearch = (firstSearchCompleteTime: number) => {
 // 开始第三次搜索
 const startThirdAllSearch = (secondSearchCompleteTime: number) => {
   if (!lastSearchParams.value) return;
+  const generation = searchGeneration;
+  const signal = searchController?.signal;
   
   updateCount.value = 2;
   
@@ -720,13 +768,15 @@ const startThirdAllSearch = (secondSearchCompleteTime: number) => {
   
   // 执行第三次搜索
   const executeThirdSearch = async () => {
+    if (generation !== searchGeneration) return;
     if (!lastSearchParams.value) {
       stopUpdate();
       return;
     }
     
     try {
-      const response = await search(userParams);
+      const response = await search(userParams, signal);
+      if (generation !== searchGeneration) return;
       
       // 更新结果
       if (response && response.total >= searchResults.total) {
@@ -748,6 +798,7 @@ const startThirdAllSearch = (secondSearchCompleteTime: number) => {
         stopUpdate();
       }
     } catch (error) {
+      if (generation !== searchGeneration) return;
       console.error('第三次搜索出错:', error);
       stopUpdate();
     }
@@ -760,6 +811,8 @@ const startThirdAllSearch = (secondSearchCompleteTime: number) => {
 // 开始第四次搜索
 const startFourthAllSearch = (thirdSearchCompleteTime: number) => {
   if (!lastSearchParams.value) return;
+  const generation = searchGeneration;
+  const signal = searchController?.signal;
   
   updateCount.value = 3;
   
@@ -777,23 +830,26 @@ const startFourthAllSearch = (thirdSearchCompleteTime: number) => {
   
   // 执行第四次搜索
   const executeFourthSearch = async () => {
+    if (generation !== searchGeneration) return;
     if (!lastSearchParams.value) {
       stopUpdate();
       return;
     }
     
     try {
-      const response = await search(userParams);
+      const response = await search(userParams, signal);
+      if (generation !== searchGeneration) return;
       
       // 更新结果
       if (response && response.total >= searchResults.total) {
         updateSearchResults(response);
       }
     } catch (error) {
+      if (generation !== searchGeneration) return;
       console.error('第四次搜索出错:', error);
     } finally {
       // 完成所有搜索，停止更新
-      stopUpdate();
+      if (generation === searchGeneration) stopUpdate();
     }
   };
   
@@ -803,6 +859,13 @@ const startFourthAllSearch = (thirdSearchCompleteTime: number) => {
 
 // 停止后台更新
 const stopUpdate = () => {
+  searchGeneration += 1;
+  searchController?.abort();
+  searchController = null;
+  if (loadingTimeout !== null) {
+    clearTimeout(loadingTimeout);
+    loadingTimeout = null;
+  }
   // 清除所有定时器
   if (updateTimer.value) {
     clearInterval(updateTimer.value);
@@ -834,8 +897,12 @@ const switchToSearch = () => {
   currentPage.value = 'search';
 };
 
-// 重置到初始页面（清空搜索结果，仅在必要时使用）
+// 重置本轮搜索，保留来源设置和搜索历史。
 const resetToInitial = () => {
+  lastSearchParams.value = null;
+  forceRefreshPending = false;
+  showExportModal.value = false;
+  searchForm.value?.reset();
   // 停止之前的更新
   stopUpdate();
   
@@ -885,72 +952,17 @@ onUnmounted(() => {
     :class="isEmbedded ? 'embedded' : 'standalone'"
   >
     <!-- 导航栏 -->
-    <nav ref="navHeaderRef" class="nav-header">
-      <div class="nav-inner">
-        <button type="button" class="brand" @click="switchToSearch" aria-label="返回搜索">
-          <span class="brand-mark">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="m15.5 15.5 4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
-              <circle cx="10.5" cy="10.5" r="5.75" stroke="currentColor" stroke-width="2.2" />
-              <path d="M8.25 10.5h4.5M10.5 8.25v4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
-            </svg>
-          </span>
-          <span class="brand-copy">
-            <strong class="brand-name">小白搜盘</strong>
-          </span>
-        </button>
-        
-        <!-- 导航菜单 -->
-        <nav class="nav-menu" aria-label="主导航">
-          <button 
-            @click="switchToSearch"
-            class="nav-button"
-            :class="{ 'active': currentPage === 'search' }"
-            title="搜索"
-          >
-            <span class="nav-icon">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-              </svg>
-            </span>
-            <span class="nav-text">搜索</span>
-          </button>
-          <button 
-            @click="switchToStatus"
-            class="nav-button"
-            :class="{ 'active': currentPage === 'status' }"
-            title="来源"
-          >
-            <span class="nav-icon">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-              </svg>
-            </span>
-            <span class="nav-text">设置</span>
-          </button>
-          <a
-            v-if="isEmbedded"
-            :href="browserUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="nav-button nav-link"
-            title="在浏览器中打开"
-            aria-label="在浏览器中打开"
-          >
-            <span class="nav-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5h5m0 0v5m0-5-8 8"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13v5a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h5"></path>
-              </svg>
-            </span>
-            <span class="nav-text">浏览器打开</span>
-          </a>
-        </nav>
-      </div>
-    </nav>
+    <header ref="navHeaderRef" class="workspace-header">
+      <button v-if="!isEmbedded" class="workspace-brand" type="button" @click="returnToSearch"><img :src="appPath('/logo.svg')" alt="" width="28" height="28"><span>小白搜盘</span></button>
+      <nav class="workspace-navigation" aria-label="主导航">
+        <button type="button" :class="{ active: !cloudCenterOpen }" :aria-current="!cloudCenterOpen ? 'page' : undefined" @click="returnToSearch">搜索资源</button>
+        <button v-for="item in workspaceTabs" :key="item.id" type="button" :class="{ active: cloudCenterOpen && cloudCenterTab === item.id }" :aria-current="cloudCenterOpen && cloudCenterTab === item.id ? 'page' : undefined" @click="openCloudCenter(item.id)">{{ item.name }}</button>
+      </nav>
+      <div class="workspace-tools"><button type="button" aria-label="来源设置" title="来源设置" @click="switchToStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg><span>搜索设置</span></button><a v-if="isEmbedded" :href="browserUrl" target="_blank" rel="noopener noreferrer" aria-label="在浏览器中打开" title="在浏览器中打开">↗</a></div>
+    </header>
     
     <!-- 主要内容区域 -->
+    <div v-show="!cloudCenterOpen" class="workspace-layout">
     <main
       ref="mainContentRef"
       class="main-content flex-1"
@@ -958,18 +970,12 @@ onUnmounted(() => {
     >
       <!-- 搜索页面 -->
       <div class="search-page" :class="{ 'has-searched': hasSearched }">
-        <section v-if="!hasSearched && !isEmbedded" class="search-intro">
-          <div class="intro-status">
-            <span class="intro-status-dot"></span>
-            {{ backendHealth?.plugin_count || 26 }} 个来源已就绪
-          </div>
-          <h1>搜一次，找到更多。</h1>
-          <p>聚合检索常用网盘来源，结果自动归类，打开和复制都更快。</p>
-        </section>
         <!-- 搜索表单 -->
         <div class="search-toolbar">
+          <div v-if="!hasSearched" class="home-search-heading"><h1>搜索资源</h1><p>电影、剧集、软件、学习资料</p></div>
           <div class="search-form-block" :class="{ 'is-compact': hasSearched }">
             <SearchForm
+              ref="searchForm"
               :backend-health="backendHealth"
               :loading="loading"
               @search="handleSearch"
@@ -977,35 +983,8 @@ onUnmounted(() => {
             />
           </div>
 
-          <div v-if="isEmbedded" class="embedded-actions">
-            <button
-              type="button"
-              class="compact-action"
-              title="来源设置"
-              aria-label="来源设置"
-              @click="switchToStatus"
-            >
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.4 15a1.7 1.7 0 00.34 1.88l.06.06a2 2 0 01-2.83 2.83l-.06-.06A1.7 1.7 0 0015 19.4a1.7 1.7 0 00-1 .6 1.7 1.7 0 00-.4 1.1V21a2 2 0 01-4 0v-.09A1.7 1.7 0 008.5 19.4a1.7 1.7 0 00-1.88.34l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.7 1.7 0 004.6 15a1.7 1.7 0 00-.6-1 1.7 1.7 0 00-1.1-.4H3a2 2 0 010-4h.09A1.7 1.7 0 004.6 8.5a1.7 1.7 0 00-.34-1.88l-.06-.06a2 2 0 012.83-2.83l.06.06A1.7 1.7 0 009 4.6a1.7 1.7 0 001-.6 1.7 1.7 0 00.4-1.1V3a2 2 0 014 0v.09A1.7 1.7 0 0015.5 4.6a1.7 1.7 0 001.88-.34l.06-.06a2 2 0 012.83 2.83l-.06.06A1.7 1.7 0 0019.4 9c.13.38.34.73.6 1 .3.29.69.45 1.1.45H21a2 2 0 010 4h-.09A1.7 1.7 0 0019.4 15z"></path>
-              </svg>
-            </button>
-            <a
-              :href="browserUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="compact-action"
-              title="在浏览器中打开"
-              aria-label="在浏览器中打开"
-            >
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5h5m0 0v5m0-5-8 8"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13v5a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h5"></path>
-              </svg>
-            </a>
-          </div>
         </div>
-        
+
         <!-- 搜索统计 -->
         <div v-if="hasSearched || loading" class="search-stats-block">
           <SearchStats 
@@ -1018,9 +997,11 @@ onUnmounted(() => {
             :canExport="hasExportableResults"
             @export-results="openExportModal"
             @force-refresh="handleForceRefresh"
+            @reset="resetToInitial"
           />
         </div>
         
+        <div class="results-layout">
         <!-- 加载状态 -->
         <div v-if="loading" class="search-loading-block card p-6">
           <div class="space-y-3">
@@ -1048,7 +1029,9 @@ onUnmounted(() => {
             :loading="loading"
             :hasSearched="hasSearched"
             :isActivelySearching="isActivelySearching"
-          />
+            @cloud-action="openCloudTransfer"
+          ><template #home-accounts><HomeCloudAccounts :revision="cloudRevision" @configure="configureCloud" @records="openCloudCenter('subscriptions')" /></template></ResultTabs>
+        </div>
         </div>
 
         <ExportResultsModal
@@ -1063,6 +1046,10 @@ onUnmounted(() => {
       </div>
       
     </main>
+    </div>
+
+    <CloudTransferDialog v-if="cloudTarget" :target="cloudTarget" :visible="!cloudCenterOpen" @close="cloudTarget = null" @accounts="openCloudCenter('accounts')" @records="openCloudRecords" />
+    <CloudCenter v-if="cloudCenterOpen" :key="cloudCenterTab" :page="true" :initial-tab="cloudCenterTab" :initial-provider="cloudInitialProvider" :auto-connect="cloudAutoConnect" @connected="cloudRevision++" @close="returnToSearch" />
 
     <Teleport to="body">
       <Transition name="settings-fade">
@@ -1076,6 +1063,7 @@ onUnmounted(() => {
               <button type="button" aria-label="关闭设置" title="关闭" @click="switchToSearch">×</button>
             </header>
             <div class="settings-drawer-body">
+              <div class="settings-cloud-links"><strong>网盘与追更</strong><p>配置百度、夸克、迅雷账号和持续追更任务</p><div><button type="button" @click="openCloudCenter('accounts')">网盘账号设置</button><button type="button" @click="openCloudCenter('subscriptions')">我的追更</button><button type="button" @click="openCloudCenter('jobs')">转存记录</button></div></div>
               <SearchConfig :backend-health="backendHealth" />
             </div>
           </aside>
@@ -1086,6 +1074,16 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.workspace-layout { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+.results-layout { display: flex; gap: 10px; min-width: 0; min-height: 0; }
+.results-layout > .search-results-block,
+.results-layout > .search-loading-block { flex: 1 1 0%; min-width: 0; width: 0; }
+@media (max-width: 600px) { .results-layout { gap: 6px; } }
+.workspace-layout > .main-content { min-width: 0; width: 0; flex: 1 1 0%; height: 100%; }
+.cloud-settings-action { width: auto !important; gap: .3rem; padding: 0 .65rem !important; white-space: nowrap; font-size: .75rem; }
+.settings-cloud-links { padding: 1rem; margin-bottom: 1rem; border: 1px solid hsl(var(--border)); border-radius: .65rem; }
+.settings-cloud-links strong { font-size: .85rem; } .settings-cloud-links p { margin: .4rem 0 .7rem; font-size: .75rem; color: hsl(var(--muted-foreground)); }
+.settings-cloud-links > div { display: flex; gap: .5rem; flex-wrap: wrap; } .settings-cloud-links button { padding: .45rem .65rem; border: 1px solid hsl(var(--primary) / .2); border-radius: .4rem; background: hsl(var(--primary) / .05); color: hsl(var(--primary)); font-size: .75rem; cursor: pointer; }
 .bg-decorative {
   position: fixed;
   inset: 0;
@@ -1131,14 +1129,11 @@ onUnmounted(() => {
   place-items: center;
   color: white;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent-secondary)));
-  box-shadow: 0 8px 20px hsl(var(--primary) / 0.25);
+  background: transparent;
+  box-shadow: none;
 }
 
-.brand-mark svg {
-  width: 1.35rem;
-  height: 1.35rem;
-}
+
 
 .brand-copy {
   display: flex;
@@ -1457,14 +1452,11 @@ onUnmounted(() => {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 0.4rem;
-  background: hsl(var(--primary));
+  background: transparent;
   box-shadow: none;
 }
 
-.brand-mark svg {
-  width: 1rem;
-  height: 1rem;
-}
+
 
 .brand-name {
   font-size: 0.9375rem;
@@ -1723,7 +1715,11 @@ onUnmounted(() => {
   width: min(100%, 880px);
   margin: clamp(2rem, 9vh, 5.5rem) auto 0;
 }
-.standalone .search-page:not(.has-searched) .search-results-block { display: none; }
+.standalone .search-page:not(.has-searched) .search-results-block { display: block; }
+.standalone .search-page:not(.has-searched) :deep(.empty-state > .initial-mark),
+.standalone .search-page:not(.has-searched) :deep(.empty-state > .empty-title),
+.standalone .search-page:not(.has-searched) :deep(.empty-state > .empty-subtitle),
+.standalone .search-page:not(.has-searched) :deep(.empty-state > .initial-tips) { display: none; }
 
 .standalone .main-content:not(.has-results) .search-results-block {
   min-height: 12rem;
@@ -1809,14 +1805,11 @@ onUnmounted(() => {
   width: 1.85rem;
   height: 1.85rem;
   border-radius: 0.45rem;
-  background: hsl(var(--primary));
+  background: transparent;
   box-shadow: none;
 }
 
-.brand-mark svg {
-  width: 1.05rem;
-  height: 1.05rem;
-}
+
 
 .brand-name {
   font-size: 0.9rem;
@@ -1884,6 +1877,12 @@ onUnmounted(() => {
   padding: 0.4rem;
 }
 
+@media (max-width: 600px) {
+  .embedded .search-toolbar { flex-wrap: wrap; }
+  .embedded .search-toolbar .search-form-block { flex: 1 1 100%; }
+  .embedded .search-toolbar .embedded-actions { margin-left: auto; }
+}
+
 .embedded .search-page,
 .embedded .search-page.has-searched {
   gap: 0.35rem;
@@ -1944,7 +1943,7 @@ onUnmounted(() => {
   width: 2rem;
   height: 2rem;
   border-radius: .58rem;
-  background: linear-gradient(145deg, hsl(168 78% 34%), hsl(174 92% 20%));
+  background: transparent;
 }
 .standalone .brand-name { font-size: .94rem; font-weight: 720; }
 .standalone .nav-button.active {
@@ -2057,4 +2056,7 @@ onUnmounted(() => {
   .settings-drawer { width: 100vw; max-width: none; }
   .settings-drawer-header { min-height: 3.5rem; }
 }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 </style>
+
+<style scoped src="@/assets/styles/workspace.css"></style>

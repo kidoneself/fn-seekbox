@@ -6,7 +6,17 @@ mkdir -p "${DATA_DIR}/cache" \
          "${DATA_DIR}/logs/backend"
 
 chmod +x "${TRIM_APPDEST}/bin/seekbox" "${TRIM_APPDEST}/bin/gateway.py" 2>/dev/null || true
-chmod -R u+rwX,go+rX "${DATA_DIR}" 2>/dev/null || true
+# Keep access restrictions when reinstalling over retained data.
+# In particular, the cloud encryption key must never become world-readable.
+chmod -R u+rwX "${DATA_DIR}" 2>/dev/null || true
+if [ -d "${DATA_DIR}/cloud" ] && [ ! -L "${DATA_DIR}/cloud" ]; then
+    chmod 0700 "${DATA_DIR}/cloud" 2>/dev/null || true
+    for private_file in credentials.key cloud.db; do
+        if [ -f "${DATA_DIR}/cloud/${private_file}" ] && [ ! -L "${DATA_DIR}/cloud/${private_file}" ]; then
+            chmod 0600 "${DATA_DIR}/cloud/${private_file}" 2>/dev/null || true
+        fi
+    done
+fi
 
 if [ -n "${TRIM_RUN_USERNAME}" ]; then
     chown -R "${TRIM_RUN_USERNAME}:${TRIM_RUN_USERNAME}" "${TRIM_PKGVAR}" 2>/dev/null \

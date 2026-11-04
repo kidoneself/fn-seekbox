@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# 从 backend/pansou 编译 linux/amd64 后端 → app/bin/seekbox
+# 从 backend/pansou 编译 linux/amd64 或 linux/arm64 后端
 # 交飞牛的是二进制；日常改代码在 backend/pansou/
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="${PANSOU_SRC:-$ROOT/backend/pansou}"
-OUT="$ROOT/app/bin/seekbox"
-GO_IMAGE="${GO_IMAGE:-golang:1.24-bookworm}"
+TARGET_ARCH="${GOARCH:-amd64}"
+case "$TARGET_ARCH" in
+  amd64) DEFAULT_OUT="$ROOT/app/bin/seekbox" ;;
+  arm64) DEFAULT_OUT="$ROOT/build/seekbox-linux-arm64" ;;
+  *) echo "不支持的 GOARCH: $TARGET_ARCH（仅支持 amd64 / arm64）" >&2; exit 1 ;;
+esac
+OUT="${SEEKBOX_OUT:-$DEFAULT_OUT}"
+[[ "$OUT" = /* ]] || OUT="$ROOT/$OUT"
+GO_IMAGE="${GO_IMAGE:-golang:1.24.9-bookworm}"
+# sonic 依赖须使用模块指定工具链；避免宿主较新 Go 的运行时变更。
+export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.24.9}"
 
 if [ ! -f "$SRC/main.go" ]; then
   echo "[build-seekbox] 缺少源码: $SRC"
@@ -20,27 +29,26 @@ mkdir -p "$(dirname "$OUT")"
 GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 
 build_with_go() {
-  echo "[build-seekbox] local go: $(go version) GOPROXY=$GOPROXY"
+  echo "[build-seekbox] target=linux/$TARGET_ARCH local go: $(go version) GOPROXY=$GOPROXY"
   (
     cd "$SRC"
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY="$GOPROXY" GOSUMDB=off \
+    CGO_ENABLED=0 GOOS=linux GOARCH="$TARGET_ARCH" GOPROXY="$GOPROXY" \
       go build -trimpath -ldflags="-s -w" -o "$OUT" .
   )
 }
 
 build_with_docker() {
-  echo "[build-seekbox] docker: $GO_IMAGE GOPROXY=$GOPROXY"
+  echo "[build-seekbox] target=linux/$TARGET_ARCH docker: $GO_IMAGE GOPROXY=$GOPROXY"
   docker run --rm \
     -v "$SRC:/src" \
+    -v "$(dirname "$OUT"):/out" \
     -w /src \
     -e CGO_ENABLED=0 \
     -e GOOS=linux \
-    -e GOARCH=amd64 \
+    -e GOARCH="$TARGET_ARCH" \
     -e GOPROXY="$GOPROXY" \
-    -e GOSUMDB=off \
     "$GO_IMAGE" \
-    go build -trimpath -ldflags="-s -w" -o /src/seekbox .
-  mv -f "$SRC/seekbox" "$OUT"
+    go build -trimpath -ldflags="-s -w" -o "/out/$(basename "$OUT")" .
 }
 
 if command -v go >/dev/null 2>&1; then

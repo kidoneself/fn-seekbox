@@ -16,22 +16,19 @@ const props = defineProps<{
 defineEmits<{
   (e: 'exportResults'): void;
   (e: 'forceRefresh'): void;
+  (e: 'reset'): void;
 }>();
 
-const diskTypeCount = computed(() => Object.keys(props.mergedResults || {}).length);
+const diskTypeCount = computed(() => Object.values(props.mergedResults || {}).filter(items => items.length > 0).length);
 </script>
 
 <template>
   <div class="search-summary">
     <div class="summary-copy" aria-live="polite">
-      <strong>{{ total.toLocaleString() }}</strong>
-      <span>个结果</span>
-      <span class="summary-separator">·</span>
-      <span>{{ diskTypeCount }} 种类型</span>
-      <template v-if="searchTime">
-        <span class="summary-separator">·</span>
-        <span>{{ searchTime }}ms</span>
-      </template>
+      <span class="summary-label">搜索结果</span>
+      <strong>{{ total.toLocaleString() }}</strong><span>条</span>
+      <span class="summary-types">{{ diskTypeCount }} 种类型</span>
+      <span v-if="searchTime" class="summary-time">耗时 {{ searchTime >= 1000 ? (searchTime / 1000).toFixed(2) + ' 秒' : searchTime + 'ms' }}</span>
       <template v-if="isUpdating">
         <span class="summary-separator">·</span>
         <span class="updating">仍在补充结果</span>
@@ -57,6 +54,17 @@ const diskTypeCount = computed(() => Object.keys(props.mergedResults || {}).leng
       >
         <component :is="Icons.Refresh()" />
         <span>刷新</span>
+      </button>
+      <button
+        type="button"
+        title="清空本次搜索，回到初始状态"
+        aria-label="重置搜索"
+        @click="$emit('reset')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>重置</span>
       </button>
     </div>
   </div>
@@ -132,10 +140,7 @@ const diskTypeCount = computed(() => Object.keys(props.mergedResults || {}).leng
 }
 
 @media (max-width: 520px) {
-  .summary-copy > span:nth-of-type(3),
-  .summary-copy > span:nth-of-type(4) {
-    display: none;
-  }
+  .summary-label,.summary-time { display: none; }
 
   .summary-actions button {
     width: 1.9rem;
@@ -146,4 +151,9 @@ const diskTypeCount = computed(() => Object.keys(props.mergedResults || {}).leng
     display: none;
   }
 }
+
+.search-summary { min-height: 44px; font-size: 13px; color: #475569; }
+.summary-copy { gap: 7px; }.summary-copy strong { font-size: 24px; line-height: 1.2; font-variant-numeric: tabular-nums; }.summary-label { font-weight: 600; color: hsl(var(--foreground)); margin-right: 3px; }
+.summary-types { margin-left: 7px; padding-left: 14px; border-left: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); }.summary-time { margin-left: 8px; font-size: 12px; }
+@media(max-width:520px) { .summary-copy { gap: 5px; }.summary-copy strong { font-size: 22px; }.summary-types { margin-left: 4px; padding-left: 9px; font-size: 12px; } }
 </style>

@@ -44,6 +44,24 @@ SKIP_RESPONSE_HEADERS = {
 
 # Probe the plugin's real site from this NAS, not from the browser.
 PLUGIN_PROBE = {
+    "aipan": "https://www.aipan.me",
+    "clmao": "https://clm64.top",
+    "clxiong": "https://www.cilixiong.org",
+    "diduan": "https://ddys.io",
+    "dygang": "https://www.dygang.tv",
+    "erxiaopan": "https://www.2xiaopan.one",
+    "hjzhencai": "https://www.hjzhencai.top",
+    "huban": "http://xhban.xyz:20720",
+    "leso": "https://www.leso.cc",
+    "libvio": "https://libvio.host",
+    "meitizy": "https://apis.451024.xyz",
+    "miosou": "https://miosou.cc",
+    "muou": "http://www.muoua.top",
+    "shandian": "http://sd.sduc.site",
+    "xiaokupan": "https://xiaokupan.com",
+    "xiaoyu": "https://xykmovie.com",
+    "zhizhen": "http://www.mihdr.top",
+
     "ikantv": "https://api.naspt.vip/",
     "jutoushe": "https://1.star2.cn/",
     "lou1": "http://www.1lou.me",
@@ -74,7 +92,7 @@ PLUGIN_PROBE = {
 PING_UA = "Mozilla/5.0 (compatible; SeekBoxPing/1.0)"
 PING_TTL = 180
 PING_SLOW_MS = 1500
-SEARCH_KW = os.environ.get("PLUGIN_PROBE_KW", "电影")
+SEARCH_KW = os.environ.get("PLUGIN_PROBE_KW", "流浪地球")
 SEARCH_TIMEOUT = 25
 _ping_lock = threading.Lock()
 _ping_cache: dict[str, dict] = {}
@@ -541,6 +559,8 @@ class Handler(BaseHTTPRequestHandler):
             ".json": "application/json; charset=utf-8",
             ".ico": "image/x-icon",
             ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
             ".svg": "image/svg+xml",
             ".woff": "font/woff",
             ".woff2": "font/woff2",

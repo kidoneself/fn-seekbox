@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="矩阵盘">
+  <defs>
+    <linearGradient id="matrix-blue" x1="20" y1="8" x2="230" y2="250" gradientUnits="userSpaceOnUse"><stop stop-color="#2350ef"/><stop offset=".5" stop-color="#1479ee"/><stop offset="1" stop-color="#00b3ca"/></linearGradient>
+    <mask id="five"><rect width="256" height="256" fill="white"/><path d="M137 113h-14l-4 10c21-1 20 28-2 23 15 11 32-13 10-19l2-6h7z" fill="black"/></mask>
+  </defs>
+  <rect x="4" y="4" width="248" height="248" rx="48" fill="url(#matrix-blue)"/>
+  <path d="M59 94h138M59 162h138M94 59v138M162 59v138" fill="none" stroke="white" stroke-width="3" opacity=".2"/>
+  <g fill="none" stroke="white" stroke-width="3" opacity=".2"><path d="M59 89v10M128 89v10M197 89v10M59 157v10M128 157v10M197 157v10M89 59h10M157 59h10M89 128h10M157 128h10M89 197h10M157 197h10"/></g>
+  <!-- 百度三环、夸克 Q、阿里开口环 -->
+  <g fill="none" stroke="white" stroke-width="6" stroke-linejoin="round">
+    <circle cx="59" cy="51" r="10"/><circle cx="45" cy="67" r="10"/><path d="M65 76c11 7 23-7 15-17-5-6-13-4-19 3L49 77"/>
+  </g>
+  <path fill="white" fill-rule="evenodd" d="M128 36a23 23 0 1 1 0 46 23 23 0 0 1 0-46zm0 11a12 12 0 1 0 0 24 12 12 0 0 0 0-24z"/>
+  <circle cx="139" cy="69" r="7" fill="white"/>
+  <path d="M215 63a19 19 0 1 1 0-8" fill="none" stroke="white" stroke-width="8"/>
+  <path d="m211 56 8 3-2 5-9-4z" fill="white"/>
+  <!-- 迅雷飞鸟、115、123 -->
+  <path d="m34 111 15 5c4-5 8 0 12 5 9-8 18-12 26-15l-15 26-3 4 9 20-18-15c-13-4-12-15-12-20z" fill="white"/>
+  <circle cx="128" cy="128" r="24" fill="white" mask="url(#five)"/>
+  <rect x="173" y="105" width="48" height="47" rx="10" fill="none" stroke="white" stroke-width="4"/>
+  <g fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M180 120v18M187 120h6c8 0 8 9 0 9-7 0-7 9-7 9h13M204 120h5c8 0 8 9 0 9h-4m4 0c8 0 8 9 0 9h-5"/></g>
+  <!-- 天翼云、移动云盘、UC 松鼠 -->
+  <path d="M57 211H44a10 10 0 1 1 2-20 13 13 0 0 1 26 0 10 10 0 1 1-9 12" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m64 195-7 9h5v5h4v-5h5z" fill="white"/>
+  <path d="M109 179c9-9 21-2 36-8-7 12-24 8-36 8zm-5 12c13-12 31-1 48-11-3 9-12 12-22 11-5 0-12 9-15 14-6 10 9 11 16 9 15-5 1-20-3-11-1 4 4 6 5 2 5 7-6 12-10 3-5-12 14-16 20-5 6 12-2 19-12 19-9 0-27 1-27-10 0-6 8-14 17-21-6-2-11 0-17 0z" fill="white"/>
+  <path d="M192 222c-14-3-20-18-13-30 7-11 10-17-4-14 10-13 27-9 27 3 0 12-17 17-18 29 0 5 2 9 8 12zm8-31c9-6 18 0 19 7 1 6-4 6-8 3l-11-7z" fill="white"/>
+  <path d="M210 193c-1-3-1-7 2-8-1 5 5 5 6 9zM196 199c15-2 25 5 25 15 0 3-1 5-2 7 5 0 8 2 8 4h-18c12-13-1-25-13-26z" fill="white"/>
+  <circle cx="197" cy="214" r="8" fill="none" stroke="white" stroke-width="5"/>
+</svg>
