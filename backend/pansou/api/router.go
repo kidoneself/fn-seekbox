@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
+	"pansou/buildinfo"
 	"pansou/config"
 	"pansou/plugin"
 	"pansou/service"
@@ -47,11 +48,13 @@ func SetupRouter(searchService *service.SearchService) *gin.Engine {
 			}
 
 			response := gin.H{
-				"status":          "ok",
-				"auth_enabled":    false,
-				"plugins_enabled": pluginsEnabled,
-				"channels":        []string{},
-				"channels_count":  0,
+				"status":            "ok",
+				"version":           buildinfo.Version,
+				"bootstrap_version": buildinfo.BootstrapVersion,
+				"auth_enabled":      false,
+				"plugins_enabled":   pluginsEnabled,
+				"channels":          []string{},
+				"channels_count":    0,
 			}
 
 			if pluginsEnabled {

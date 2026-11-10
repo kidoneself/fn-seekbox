@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-STAGE="$(mktemp -d /tmp/fn-seekbox-pack.XXXXXX)"
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/fn-seekbox-pack.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 
 FNPACK="${FNPACK:-fnpack}"
@@ -17,6 +17,8 @@ case "$PLATFORM" in
 esac
 SEEKBOX_BIN="${SEEKBOX_BIN:-$DEFAULT_BIN}"
 QR_CHROMIUM_DIR="${QR_CHROMIUM_DIR:-$ROOT/app/auth/chromium}"
+INCLUDE_LOCAL_BROWSER="${SEEKBOX_INCLUDE_LOCAL_BROWSER:-0}"
+[[ "$INCLUDE_LOCAL_BROWSER" = 0 || "$INCLUDE_LOCAL_BROWSER" = 1 ]] || { echo "SEEKBOX_INCLUDE_LOCAL_BROWSER 只能为 0 或 1" >&2; exit 1; }
 [[ "$SEEKBOX_BIN" = /* ]] || SEEKBOX_BIN="$ROOT/$SEEKBOX_BIN"
 
 # 不能只修改 manifest：确保包里的真正程序与目标架构一致。
@@ -36,11 +38,14 @@ if kind not in (2, 3) or machine != expected:
     raise SystemExit(f"程序架构与 PLATFORM={platform} 不匹配（ELF machine={machine}）")
 print(f"[pack] verified {platform} ELF: {binary}")
 PYELF
-python3 - "$ROOT/app/auth" "$PLATFORM" "$QR_CHROMIUM_DIR" <<'PYQR'
+python3 - "$ROOT/app/auth" "$PLATFORM" "$QR_CHROMIUM_DIR" "$INCLUDE_LOCAL_BROWSER" <<'PYQR'
 import pathlib, struct, sys
 root, platform = pathlib.Path(sys.argv[1]), sys.argv[2]
 if not (root / 'node_modules/playwright-core/package.json').is_file():
     raise SystemExit('缺少扫码运行库，请先运行 scripts/prepare-qr-runtime.sh')
+if sys.argv[4] == '0':
+    print('[pack] local browser omitted; Xunlei QR uses remote scan center')
+    raise SystemExit(0)
 browser = pathlib.Path(sys.argv[3]) / 'chrome-headless-shell'
 if not browser.is_file():
     raise SystemExit('缺少 Chromium，请先运行 scripts/prepare-qr-runtime.sh')
@@ -64,14 +69,33 @@ rsync -a "$ROOT/cmd/" "$STAGE/cmd/"
 rsync -a "$ROOT/config/" "$STAGE/config/"
 rsync -a "$ROOT/wizard/" "$STAGE/wizard/"
 rsync -a --exclude=/auth/chromium/ --exclude=__pycache__/ --exclude='*.pyc' "$ROOT/app/" "$STAGE/app/"
-mkdir -p "$STAGE/app/auth/chromium"
-rsync -a "$QR_CHROMIUM_DIR/" "$STAGE/app/auth/chromium/"
+if [[ "$INCLUDE_LOCAL_BROWSER" = 1 ]]; then
+  mkdir -p "$STAGE/app/auth/chromium"
+  rsync -a "$QR_CHROMIUM_DIR/" "$STAGE/app/auth/chromium/"
+fi
 
 if [ ! -f "$SEEKBOX_BIN" ]; then
   echo "后端二进制不存在: $SEEKBOX_BIN"
   exit 1
 fi
 cp "$SEEKBOX_BIN" "$STAGE/app/bin/seekbox"
+# The immutable bootstrap remains outside online release archives.
+if [ -n "${SEEKBOX_RELEASE_PUBLIC_KEYS_FILE:-}" ]; then
+  python3 - "$SEEKBOX_RELEASE_PUBLIC_KEYS_FILE" "$STAGE/app/etc/update-public-keys.json" <<'PYKEY'
+import base64, json, pathlib, sys
+source, target = map(pathlib.Path, sys.argv[1:])
+keys = json.loads(source.read_text())
+if not isinstance(keys, dict) or not keys:
+    raise SystemExit('发布公钥文件必须是非空 JSON 对象')
+for key_id, key in keys.items():
+    if not key_id or not isinstance(key, str) or len(base64.b64decode(key, validate=True)) != 32:
+        raise SystemExit('发布公钥无效；这里只允许 Ed25519 公钥，禁止使用私钥文件')
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(json.dumps(keys) + '\n')
+PYKEY
+fi
+cp "$ROOT/cmd/main" "$STAGE/app/bin/seekbox-bootstrap.sh"
+chmod +x "$STAGE/app/bin/seekbox-bootstrap.sh"
 sed -i.bak -E "s/^platform[[:space:]]*=.*/platform              = $PLATFORM/" "$STAGE/manifest"
 rm "$STAGE/manifest.bak"
 

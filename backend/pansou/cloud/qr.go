@@ -33,6 +33,7 @@ type qrLogin struct {
 	state                  QRState
 	credentials            Credentials
 	cancel                 context.CancelFunc
+	remoteAck              func(context.Context) error
 }
 
 func qrHelperPath() string {
@@ -43,6 +44,9 @@ func qrHelperPath() string {
 	return filepath.Join(filepath.Dir(executable), "..", "auth", "login.cjs")
 }
 func (s *Service) qrAvailable(provider string) bool {
+	if provider == "xunlei" && remoteXunleiEnabled() {
+		return true
+	}
 	if s.qrCommand != nil {
 		return true
 	}
@@ -50,7 +54,11 @@ func (s *Service) qrAvailable(provider string) bool {
 		return false
 	}
 	helper := qrHelperPath()
-	for _, file := range []string{helper, filepath.Join(filepath.Dir(helper), "node_modules/playwright-core/package.json")} {
+	playwright := os.Getenv("SEEKBOX_PLAYWRIGHT_MODULE")
+	if playwright == "" {
+		playwright = filepath.Join(filepath.Dir(helper), "node_modules/playwright-core")
+	}
+	for _, file := range []string{helper, filepath.Join(playwright, "package.json")} {
 		if info, err := os.Stat(file); err != nil || !info.Mode().IsRegular() {
 			return false
 		}
@@ -68,6 +76,16 @@ func (s *Service) qrAvailable(provider string) bool {
 }
 
 func (s *Service) StartQR(owner, provider, accountID, name string) (QRState, error) {
+	release, admissionErr := s.beginOperation()
+	if admissionErr != nil {
+		return QRState{}, admissionErr
+	}
+	started := false
+	defer func() {
+		if !started {
+			release()
+		}
+	}()
 	if s.providers[provider] == nil || !s.qrAvailable(provider) {
 		return QRState{}, errors.New("扫码登录组件尚未就绪，请更新应用后重试")
 	}
@@ -112,7 +130,8 @@ func (s *Service) StartQR(owner, provider, accountID, name string) (QRState, err
 	s.qrSessions[q.state.ID] = q
 	initial := q.state
 	s.wg.Add(1)
-	go s.runQR(ctx, q)
+	started = true
+	go func() { defer release(); s.runQR(ctx, q) }()
 	return initial, nil
 }
 
@@ -184,11 +203,17 @@ func (s *Service) CompleteQR(ctx context.Context, owner, id string, names ...str
 	}
 	credentials := q.credentials
 	q.credentials = nil
-	account, err := s.Connect(ctx, owner, q.accountID, q.state.Provider, q.name, credentials)
+	account, err := s.connect(ctx, owner, q.accountID, q.state.Provider, q.name, credentials)
 	for key := range credentials {
 		delete(credentials, key)
 	}
 	q.state.Image, q.state.QRURL = "", ""
+	if err == nil && q.remoteAck != nil {
+		ackCtx, cancelAck := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = q.remoteAck(ackCtx)
+		cancelAck()
+	}
+	q.remoteAck = nil
 	q.cancel()
 	if err != nil {
 		q.state.Status, q.state.Message = "failed", "账号校验未通过，请重新扫码；重新登录时请使用原来的网盘账号"
@@ -200,6 +225,10 @@ func (s *Service) CompleteQR(ctx context.Context, owner, id string, names ...str
 
 func (s *Service) runQR(ctx context.Context, q *qrLogin) {
 	defer s.wg.Done()
+	if q.state.Provider == "xunlei" && s.qrCommand == nil && remoteXunleiEnabled() {
+		s.runRemoteQR(ctx, q)
+		return
+	}
 	var command *exec.Cmd
 	if s.qrCommand != nil {
 		command = s.qrCommand(ctx, q.state.Provider)
@@ -270,6 +299,9 @@ func (s *Service) runQR(ctx context.Context, q *qrLogin) {
 	q.mu.Lock()
 	if q.state.Status != "ready" && q.state.Status != "connected" && q.state.Status != "cancelled" && q.state.Status != "expired" && q.state.Status != "failed" {
 		q.state.Status, q.state.Message = "failed", "扫码未完成，请刷新二维码重试"
+	}
+	if q.state.Status != "ready" {
+		q.cancel()
 	}
 	q.mu.Unlock()
 	// Even if the browser has finished, discard unclaimed credentials on timeout.

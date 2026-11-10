@@ -1,11 +1,19 @@
 [
-    {
-        "stepTitle": "升级小白搜盘",
-        "items": [
-            {
-                "type": "tips",
-                "helpText": "升级会切换到 fnOS 统一网关和系统登录鉴权，不再使用独立访问端口；缓存与日志保留。"
-            }
-        ]
-    }
+  {
+    "stepTitle": "升级小白搜盘",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "升级会切换到 fnOS 统一网关和系统登录鉴权，不再使用独立访问端口；缓存与日志保留。"
+      },
+      {
+        "type": "text",
+        "field": "SEEKBOX_UPDATE_ADMIN_IDS",
+        "label": "更新管理员用户 ID（可选）",
+        "initValue": "",
+        "helpText": "填写可管理软件更新的飞牛用户 ID，多个以英文逗号分隔。留空时页面只提供版本查看；已配置的后台自动更新仍按设置运行。",
+        "rules": []
+      }
+    ]
+  }
 ]

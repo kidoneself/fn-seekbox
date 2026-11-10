@@ -1,9 +1,10 @@
 // One isolated, short-lived login per process. stdout is a private pipe to Go.
 // No account/password prompts, shared browser profile, logs, or external broker.
 'use strict';
-const { request, chromium } = require('./node_modules/playwright-core');
+const { request, chromium } = require(process.env.SEEKBOX_PLAYWRIGHT_MODULE || './node_modules/playwright-core');
 const { randomUUID } = require('node:crypto');
 const path = require('node:path');
+const { cookieHeader: mergeCookies } = require('./cookies.cjs');
 const provider = process.argv[2];
 const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36';
 const deadline = Date.now() + 240000;
@@ -35,16 +36,7 @@ async function json(url, options = {}) {
 }
 async function cookieHeader(host, extra = []) {
   const cookies = (await http.storageState()).cookies;
-  const values = new Map();
-  for (const c of cookies) {
-    const domain = c.domain.replace(/^\./, '');
-    if (c.value && (host === domain || host.endsWith('.' + domain))) values.set(c.name, c.value);
-  }
-  for (const pair of extra) {
-    const index = pair.indexOf('=');
-    if (index > 0) values.set(pair.slice(0, index), pair.slice(index + 1));
-  }
-  return [...values].map(([key, value]) => `${key}=${value}`).join('; ');
+  return mergeCookies(cookies, host, extra);
 }
 async function baidu() {
   const qr = await json(address('https://passport.baidu.com/v2/api/getqrcode', { lp: 'pc', tpl: 'netdisk', apiver: 'v3' }));

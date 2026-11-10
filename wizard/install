@@ -13,6 +13,14 @@
         "initValue": "",
         "helpText": "不需要请留空。格式如 http://127.0.0.1:1080 或 socks5://127.0.0.1:1080。",
         "rules": []
+      },
+      {
+        "type": "text",
+        "field": "SEEKBOX_UPDATE_ADMIN_IDS",
+        "label": "更新管理员用户 ID（可选）",
+        "initValue": "",
+        "helpText": "填写可管理软件更新的飞牛用户 ID，多个以英文逗号分隔。留空时页面只提供版本查看；已配置的后台自动更新仍按设置运行。",
+        "rules": []
       }
     ]
   }

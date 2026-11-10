@@ -18,10 +18,12 @@ import (
 	"golang.org/x/net/netutil"
 
 	"pansou/api"
+	"pansou/buildinfo"
 	"pansou/cloud"
 	"pansou/config"
 	"pansou/plugin"
 	"pansou/service"
+	"pansou/update"
 	"pansou/util"
 	"pansou/util/cache"
 
@@ -146,15 +148,41 @@ func startServer() {
 	if cloudPath == "" {
 		cloudPath = filepath.Join(filepath.Dir(config.AppConfig.CachePath), "cloud")
 	}
-	cloudService, cloudErr := cloud.NewService(cloudPath, []cloud.Provider{
+	// Determine candidate isolation before starting cloud worker goroutines.
+	updateConfig, updateErr := update.FromEnv(buildinfo.Version)
+	startupMaintenance := update.NeedsStartupPause(updateConfig.Root, buildinfo.Version)
+	updateConfig.ResumeAfterRecovery = startupMaintenance
+	cloudService, cloudErr := cloud.NewServiceWithStartupMaintenance(cloudPath, []cloud.Provider{
 		cloud.NewBaiduProvider(), cloud.NewQuarkProvider(), cloud.NewXunleiProvider(),
-	})
+	}, startupMaintenance)
 	if cloudErr != nil {
 		log.Printf("网盘模块初始化失败: %v", cloudErr)
 	} else {
 		defer cloudService.Close()
 	}
 	api.RegisterCloudRoutes(router, cloudService)
+
+	// The independent bootstrap owns process replacement. The app only accepts
+	// signed releases and drains every cloud owner before handing over control.
+	var updater *update.Manager
+	if updateErr == nil && cloudService != nil {
+		updater, updateErr = update.New(updateConfig, update.Hooks{
+			Prepare: cloudService.PrepareUpdate,
+			Resume:  cloudService.ResumeUpdate,
+			Report: func(event update.Event) error {
+				return cloudService.EnqueueReleaseEvent(cloud.ReleaseEvent{ReleaseID: event.ReleaseID, EventID: event.EventID, Version: event.Version, FromVersion: event.FromVersion, Status: event.Status, ErrorCode: event.ErrorCode, OccurredAt: event.OccurredAt})
+			},
+		})
+	}
+	if updateErr != nil {
+		log.Printf("在线更新初始化失败，请检查本地更新配置")
+	}
+	var updateAPI api.UpdateManager
+	if updater != nil {
+		defer updater.Close()
+		updateAPI = updater
+	}
+	api.RegisterUpdateRoutes(router, updateAPI, strings.Split(os.Getenv("SEEKBOX_UPDATE_ADMIN_IDS"), ","))
 
 	// 获取端口配置
 	port := config.AppConfig.Port

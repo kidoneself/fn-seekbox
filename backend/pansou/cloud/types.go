@@ -75,6 +75,7 @@ type ProviderInfo struct {
 }
 
 type Account struct {
+	AuthCheckedAt  int64  `json:"auth_checked_at"`
 	ID             string `json:"id"`
 	Provider       string `json:"provider"`
 	ProviderUserID string `json:"provider_user_id"`
@@ -97,7 +98,8 @@ type TransferRequest struct {
 }
 
 type Subscription struct {
-	ID string `json:"id"`
+	Progress *FollowProgress `json:"progress,omitempty"`
+	ID       string          `json:"id"`
 	TransferRequest
 	Provider        string `json:"provider"`
 	IntervalMinutes int    `json:"interval_minutes"`
@@ -111,17 +113,18 @@ type Subscription struct {
 }
 
 type Job struct {
-	Filtered       int    `json:"filtered"`
-	ID             string `json:"id"`
-	AccountID      string `json:"account_id"`
-	SubscriptionID string `json:"subscription_id"`
-	Provider       string `json:"provider"`
-	Title          string `json:"title"`
-	Status         string `json:"status"`
-	Saved          int    `json:"saved"`
-	Skipped        int    `json:"skipped"`
-	Total          int    `json:"total"`
-	Error          string `json:"error"`
-	CreatedAt      int64  `json:"created_at"`
-	FinishedAt     int64  `json:"finished_at"`
+	Progress       *FollowProgress `json:"progress,omitempty"`
+	Filtered       int             `json:"filtered"`
+	ID             string          `json:"id"`
+	AccountID      string          `json:"account_id"`
+	SubscriptionID string          `json:"subscription_id"`
+	Provider       string          `json:"provider"`
+	Title          string          `json:"title"`
+	Status         string          `json:"status"`
+	Saved          int             `json:"saved"`
+	Skipped        int             `json:"skipped"`
+	Total          int             `json:"total"`
+	Error          string          `json:"error"`
+	CreatedAt      int64           `json:"created_at"`
+	FinishedAt     int64           `json:"finished_at"`
 }

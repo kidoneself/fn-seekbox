@@ -1,0 +1,32 @@
+# Isolated local development. No production network or production database mount.
+name: seekbox-update-development
+services:
+  management-center:
+    image: local/seekbox-update-management:development
+    build: .
+    restart: "no"
+    command:
+      - -addr=:8080
+      - -db=/data/config.db
+      - -seed=/app/seed.json
+      - -web=/app/web
+      - -admin-password-hash-file=/run/secrets/admin-password-hash
+      - -origin=http://127.0.0.1:18999
+      - -allow-insecure-loopback
+      - -release-public-keys-file=/run/secrets/release-public-keys.json
+    ports:
+      - "127.0.0.1:18999:8080"
+    volumes:
+      - ./dev-data:/data
+      - ./dev-secrets/admin-password-hash:/run/secrets/admin-password-hash:ro
+      - ./dev-secrets/release-public-keys.json:/run/secrets/release-public-keys.json:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 384m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/app/server", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

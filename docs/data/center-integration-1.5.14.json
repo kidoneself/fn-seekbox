@@ -1,0 +1,47 @@
+{
+  "version": "1.5.14",
+  "date": "2026-11-05",
+  "package_sha256": "bc9d10bfc8df9af42d6020d8c5defed53ae4924324c0e5d34d411f0362d49cfd",
+  "local_checks": [
+    "go test -race ./cloud ./api",
+    "go vet ./cloud ./api",
+    "frontend build",
+    "function-check browser desktop/mobile",
+    "existing follow-plan browser regression"
+  ],
+  "live": {
+    "installation": "reinstalled over retained data",
+    "accounts_preserved": 3,
+    "subscriptions_preserved": 3,
+    "credential_key_preserved": true,
+    "search_sites": 43,
+    "registration": "accepted",
+    "heartbeat": "accepted",
+    "check_events": "accepted",
+    "rejected_events": 0,
+    "manual_checks": 3,
+    "completed_transfer_delete_cycles": 0,
+    "cleanup_pending": 0,
+    "daily_enabled": true,
+    "reporting_enabled": true,
+    "real_midnight_run": "not yet observed"
+  },
+  "test_source_blockers": [
+    {
+      "provider": "baidu",
+      "problem": "Configured public share belongs to the checked account; transfer rejected with errno 2. Use another account share."
+    },
+    {
+      "provider": "quark",
+      "configured_path": "功能检查.txt",
+      "actual_path": "汁源分享.jpg",
+      "size": 45815
+    },
+    {
+      "provider": "xunlei",
+      "configured_path": "功能检查.txt",
+      "actual_path": "更多汁源领取.jpg",
+      "size": 45815
+    }
+  ]
+}

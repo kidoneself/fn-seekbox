@@ -6,7 +6,7 @@
 | --- | --- |
 | 显示名 | 小白搜盘 |
 | 包名 | `fn-seekbox` |
-| 当前版本 | 1.5.9 |
+| 当前版本 | 1.5.17 |
 | 平台 | x86（amd64）/ ARM（arm64） |
 | 访问方式 | fnOS 统一网关（需登录） |
 | 维护者 | `kidoneself` |
@@ -32,7 +32,7 @@
 
 - 飞牛 fnOS **1.1.8** 及以上
 - **x86 / amd64** 或 **ARM / arm64** NAS
-- 应用中心安装 Node.js v22（安装包声明依赖），迅雷扫码使用随包 Chromium
+- 应用中心安装 Node.js v22（安装包声明依赖）；1.6.3 默认由远端扫码中心处理迅雷登录，百度/夸克在本地处理
 - 可访问外网的插件站点（可选配置 HTTP/SOCKS5 代理）
 
 ---
@@ -41,7 +41,7 @@
 
 ### 方式一：安装 FPK（推荐）
 
-1. 准备对应 NAS 架构的 FPK：x86 为 `fn-seekbox-1.5.9-x86.fpk`；ARM 可按下方构建步骤生成 `fn-seekbox-1.5.9-arm.fpk`
+1. 准备对应 NAS 架构的 FPK：x86 为 `fn-seekbox-1.5.17-x86.fpk`；ARM 可按下方构建步骤生成 `fn-seekbox-1.5.17-arm.fpk`
 2. 打开 **应用中心** → **手动安装**，选择 FPK 文件
 3. 安装向导里按需填写出站代理；不需要代理可留空
 4. 安装完成后，在桌面点击 **小白搜盘** 图标
@@ -118,34 +118,31 @@ sudo appcenter-cli start fn-seekbox
 
 本机需安装 [fnpack](https://static2.fnnas.com/fnpack/)。项目自带 `pack.sh`，会在临时目录里只复制打包所需文件，**不会**把 `backend/`、`frontend/` 源码打进包。
 
-扫码运行库来自公开的 `playwright-core@1.57.0` 和 Chromium 发行版，不包含外部登录服务或其配置。首次单架构打包先运行 `./scripts/prepare-qr-runtime.sh`。运行库与后端都必须匹配 NAS 架构。
+扫码运行库使用公开的 `playwright-core@1.57.0`。1.6.3 默认不打包 Chromium：迅雷向远端扫码中心请求二维码和短期凭据，百度/夸克保持 NAS 本地 HTTP 登录；内部服务密钥不会进入安装包。接入说明见 [扫码中心集成](docs/scan-center-integration.md)。
 
-同时构建两个架构（会分别下载对应架构的 Chromium；还需 Node.js/npm、rsync、Python 3、sha256sum，并先安装前端依赖）：
+首次运行 `./scripts/prepare-qr-runtime.sh` 准备本地扫码依赖。两种架构都可用同一份 JavaScript 运行库，后端二进制必须匹配 NAS 架构。构建两个架构需要 Node.js/npm、Go、rsync、Python 3、sha256sum 和 fnpack：
 
 ```bash
 ./scripts/build-all.sh
 # fnpack 不在 PATH 时：FNPACK=/path/to/fnpack ./scripts/build-all.sh
-# 输出：fn-seekbox-1.5.9-x86.fpk、fn-seekbox-1.5.9-arm.fpk
-# 校验文件：build/fn-seekbox-1.5.9-SHA256SUMS.txt
+# 输出：fn-seekbox-1.6.3-x86.fpk、fn-seekbox-1.6.3-arm.fpk
+# 校验文件：build/fn-seekbox-1.6.3-SHA256SUMS.txt
 ```
 
-两个包分别包含 amd64 / arm64 静态后端及相应架构的扫码浏览器，前端相同。1.5.9 本次验证 x86，ARM 扫码未在实机验证。打包时会校验 ELF 架构，防止程序与包的平台标记不一致。1.3.5 已通过 x86 原生和 ARM64 QEMU 下的启动、搜索、网关鉴权及静态资源检查；ARM 飞牛实机安装尚未验证。
+本次产物分别为 11,439,132 / 9,816,452 字节；已检查版本、静态资源、后端 ELF 架构、发布公钥与无浏览器内容，并验证 x86 包内后端健康启动。ARM64 未在飞牛实机验证。实际验收记录见 `build/package-verification-1.6.3.json`。
 
 单独构建 x86：
 
 ```bash
-# 若改过后端
 ./scripts/build-seekbox.sh
-
-# 若改过前端
-cd frontend && npm run build && cp -R dist/* ../app/web/ && cd ..
-
-# 打包（提交飞牛用这个 .fpk）
+(cd frontend && npm run build)
+cp -R frontend/dist/. app/web/
 ./pack.sh
-# 输出：fn-seekbox-1.5.9-x86.fpk
 ```
 
-单独构建 ARM64：先运行 `QR_PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm" ./scripts/prepare-qr-runtime.sh` 下载 ARM 浏览器，再运行 `GOARCH=arm64 ./scripts/build-seekbox.sh`，再运行 `PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm" ./pack.sh`；如修改前端，打包前同样需要更新 `app/web/`。
+ARM64 后端使用 `GOARCH=arm64 ./scripts/build-seekbox.sh`，然后 `PLATFORM=arm ./pack.sh`。
+
+需要本地迅雷浏览器时显式设置 `SEEKBOX_INCLUDE_LOCAL_BROWSER=1`，再准备运行库并打包；ARM 使用 `QR_PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm"` 准备对应浏览器，打包时同样指定该目录。运行时 `SEEKBOX_REMOTE_XUNLEI=0` 才使用本地迅雷流程；轻量包没有浏览器，不能只改运行开关就启用本地迅雷。
 
 ---
 

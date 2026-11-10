@@ -401,6 +401,14 @@ func TestServiceAuthExpiryAfterSubmissionKeepsUncertainJournal(t *testing.T) {
 	p.setSaveError(ErrAuthExpired)
 	s := serviceStart(t, p)
 	a := serviceConnect(t, s, "alice", "old-private-cookie")
+	if err := s.store.update("alice", func(st *userState) error {
+		account := st.Accounts[a.ID]
+		account.AuthCheckedAt = 1
+		st.Accounts[a.ID] = account
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 	job, err := s.Transfer("alice", serviceRequest(a, "expired-poll"))
 	if err != nil {
 		t.Fatal(err)
@@ -409,7 +417,7 @@ func TestServiceAuthExpiryAfterSubmissionKeepsUncertainJournal(t *testing.T) {
 		t.Fatalf("expired save succeeded: %+v", result)
 	}
 	accounts, _ := s.Accounts("alice")
-	if len(accounts) != 1 || accounts[0].Status != "expired" {
+	if len(accounts) != 1 || accounts[0].Status != "expired" || accounts[0].AuthCheckedAt <= 1 {
 		t.Fatalf("account did not expire: %+v", accounts)
 	}
 	if _, err := s.Transfer("alice", serviceRequest(a, "before-reconnect")); err == nil {

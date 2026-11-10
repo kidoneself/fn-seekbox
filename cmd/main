@@ -14,7 +14,48 @@ GATEWAY_SOCKET="${TRIM_APPDEST}/app.sock"
 GATEWAY_PREFIX="/app/fn-seekbox"
 
 BACKEND_HOST="127.0.0.1"
-BACKEND_PORT="18888"
+BACKEND_PORT="${SEEKBOX_BACKEND_PORT:-18888}"
+
+export SEEKBOX_RUNTIME_ROOT="${TRIM_PKGVAR}/runtime"
+export SEEKBOX_UPDATE_HELPER="${TRIM_APPDEST}/bin/update-helper.py"
+export SEEKBOX_BOOTSTRAP_CMD="${TRIM_APPDEST}/bin/seekbox-bootstrap.sh"
+# Local isolated development also uses this exact startup script.
+[ -f "$SEEKBOX_BOOTSTRAP_CMD" ] || SEEKBOX_BOOTSTRAP_CMD="$(readlink -f "$0")"
+
+select_runtime() {
+    # Recovery only changes a stale pending pointer. An active helper owns the
+    # lock, so its deliberate restart is never mistaken for an interrupted update.
+    if [ -f "$SEEKBOX_UPDATE_HELPER" ]; then
+        python3 "$SEEKBOX_UPDATE_HELPER" recover --root "$SEEKBOX_RUNTIME_ROOT" || return 1
+    fi
+    local runtime_path
+    runtime_path=$(python3 - "$SEEKBOX_RUNTIME_ROOT" "$TRIM_APPDEST" <<'PYRUNTIME'
+import json, pathlib, sys
+root, base = map(pathlib.Path, sys.argv[1:])
+current = root / "current"
+try:
+    target = current.resolve(strict=True)
+    releases = (root / "releases").resolve()
+    if not current.is_symlink() or target.parent != releases:
+        raise ValueError("invalid release location")
+    metadata = json.loads((target / "runtime.json").read_text())
+    if metadata.get("data_schema") != 1:
+        raise ValueError("incompatible data schema")
+    for name in ("bin/seekbox", "bin/gateway.py", "web/index.html"):
+        if not (target / name).is_file():
+            raise ValueError("incomplete release")
+    print(target)
+except (OSError, ValueError, TypeError):
+    print(base)
+PYRUNTIME
+) || return 1
+    BIN="$runtime_path/bin/seekbox"
+    GATEWAY="$runtime_path/bin/gateway.py"
+    WEBROOT="$runtime_path/web"
+    SEEKBOX_QR_HELPER="$runtime_path/auth/login.cjs"
+    [ -f "$SEEKBOX_QR_HELPER" ] || SEEKBOX_QR_HELPER="$TRIM_APPDEST/auth/login.cjs"
+    export SEEKBOX_QR_HELPER
+}
 
 # 飞牛向导空字符串不会用镜像默认值；bash 的 :- 会。保留原有 26 个来源，并新增 17 个 NAS 直连试搜通过的来源。
 DEFAULT_PLUGINS="ikantv,dyyjpro,duoduo,feikuai,gaoqing888,gying,hunhepan,jutoushe,kkv,lingjisp,lou1,melost,ouge,panlian,qqpd,quark4k,quarksoo,quarktv,sousou,thepiratebay,wanou,weibo,xb6v,xiaozhang,yunso,zxzj,aipan,clmao,clxiong,diduan,dygang,erxiaopan,hjzhencai,huban,leso,libvio,meitizy,miosou,muou,shandian,xiaokupan,xiaoyu,zhizhen"
@@ -26,7 +67,15 @@ log_msg() {
 
 check_pid() {
     local pid="$1"
-    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+    # A stopped child may remain a zombie until its parent reaps it.
+    local procstat rest
+    if [ -r "/proc/$pid/stat" ]; then
+        IFS= read -r procstat < "/proc/$pid/stat" || return 1
+        rest="${procstat##*) }"
+        case "${rest%% *}" in Z|X) return 1 ;; esac
+    fi
+    return 0
 }
 
 status() {
@@ -59,6 +108,13 @@ export_runtime_env() {
     export PROXY
     export TZ="${TZ:-Asia/Shanghai}"
     export WEBROOT GATEWAY_SOCKET GATEWAY_PREFIX
+    export SEEKBOX_UPDATE_ADMIN_IDS
+    export SEEKBOX_UPDATE_BASE_URL="${SEEKBOX_UPDATE_BASE_URL:-https://hermes.smartloan.cn}"
+    export SEEKBOX_CHROMIUM="${TRIM_APPDEST}/auth/chromium/chrome-headless-shell"
+    export SEEKBOX_PLAYWRIGHT_MODULE="${TRIM_APPDEST}/auth/node_modules/playwright-core"
+    if [ -f "${TRIM_APPDEST}/etc/update-public-keys.json" ]; then
+        export SEEKBOX_UPDATE_PUBLIC_KEYS_FILE="${TRIM_APPDEST}/etc/update-public-keys.json"
+    fi
 }
 
 wait_gateway_ready() {
@@ -97,6 +153,7 @@ start_process() {
     fi
     # 半残进程（只活了一个）先清掉再拉
     stop_process
+    select_runtime || { log_msg "ERROR: online update recovery failed"; return 1; }
 
     if [ ! -x "$BIN" ]; then
         echo "找不到后端程序: ${BIN}" > "${TRIM_TEMP_LOGFILE}"
@@ -121,6 +178,11 @@ start_process() {
 
     local i
     for i in $(seq 1 30); do
+        if ! check_pid "$(cat "$BACKEND_PID_FILE" 2>/dev/null)"; then
+            log_msg "ERROR: backend exited before health readiness"
+            stop_process
+            return 1
+        fi
         if curl -sf --max-time 2 "http://${BACKEND_HOST}:${BACKEND_PORT}/api/health" >/dev/null 2>&1; then
             break
         fi

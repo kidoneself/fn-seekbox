@@ -18,11 +18,15 @@ export interface TransferRequest {
   account_id: string; title: string; share_url: string; password: string;
   destination_id: string; destination_name: string; request_id: string;
 }
+export interface ContentProgress { kind: 'episode' | 'issue' | 'date' | 'unknown'; value?: string; label?: string; evidence?: string }
+export interface FollowProgress { source: ContentProgress; saved: ContentProgress; checked_at: number; confirmed_files: number }
 export interface CloudSubscription extends TransferRequest {
+  progress?: FollowProgress;
   id: string; provider: CloudProvider; interval_minutes: number; enabled: boolean; status: string;
   last_checked_at: number; next_check_at: number; last_error: string; transferred: number; created_at: number;
 }
 export interface CloudJob {
+  progress?: FollowProgress;
   id: string; account_id: string; subscription_id: string; provider: CloudProvider; title: string;
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'partial' | 'interrupted';
   saved: number; skipped: number; filtered?: number; total: number; error: string; created_at: number; finished_at: number;
@@ -67,7 +71,7 @@ export const cancelCloudQR = async (id: string) => { await cloudApi.delete(`/qr/
 export const listCloudAccounts = async () => (await cloudApi.get<{ accounts: CloudAccount[] }>('/accounts')).data.accounts || [];
 export const connectCloudAccount = async (body: { provider: CloudProvider; name: string; credentials: Record<string, string> }, id?: string) =>
   (id ? await cloudApi.put<{ account: CloudAccount }>(`/accounts/${encodeURIComponent(id)}`, body) : await cloudApi.post<{ account: CloudAccount }>('/accounts', body)).data.account;
-export const checkCloudAccount = async (id: string) => (await cloudApi.post<{ account: CloudAccount }>(`/accounts/${encodeURIComponent(id)}/check`, {})).data.account;
+export const checkCloudAccount = async (id: string) => (await cloudApi.post<{ check: FunctionCheck }>(`/accounts/${encodeURIComponent(id)}/function-check`, {})).data.check;
 export const deleteCloudAccount = async (id: string) => { await cloudApi.delete(`/accounts/${encodeURIComponent(id)}`); };
 export const listCloudFolders = async (id: string, parent: string) => (await cloudApi.get<{ folders: CloudFolder[] }>(`/accounts/${encodeURIComponent(id)}/folders`, { params: { parent } })).data.folders || [];
 export const createCloudTransfer = async (body: TransferRequest) => (await cloudApi.post<{ job: CloudJob }>('/transfers', body)).data.job;
@@ -78,3 +82,13 @@ export const createCloudSubscription = async (body: TransferRequest & { interval
 export const updateCloudSubscription = async (id: string, body: { enabled?: boolean; interval_minutes?: number; filter_ads?: boolean }) => (await cloudApi.patch<{ subscription: CloudSubscription }>(`/subscriptions/${encodeURIComponent(id)}`, body)).data.subscription;
 export const checkCloudSubscription = async (id: string) => (await cloudApi.post<{ job: CloudJob }>(`/subscriptions/${encodeURIComponent(id)}/check`, {})).data.job;
 export const deleteCloudSubscription = async (id: string) => { await cloudApi.delete(`/subscriptions/${encodeURIComponent(id)}`); };
+
+export interface CheckStage { stage: string; status: string; duration_ms: number; error_code?: string }
+export interface FunctionCheck { id: string; account_id: string; provider: string; status: string; trigger: string; created_at: number; finished_at: number; scheduled_for: number; stages: CheckStage[]; error: string; cleanup_pending: boolean; target_name?: string; cleanup_status?: string }
+export interface CenterSite { id: string; name: string; url: string; enabled: boolean; order: number }
+export interface CenterStatus { config: { daily_enabled: boolean; reporting_enabled: boolean; enabled_since: number }; connected: boolean; pending_events: number; last_report_at: number; last_error: string; rejected_events: number; report_error: string; sites?: CenterSite[]; sites_updated_at: number }
+export const getCenterStatus = async () => (await cloudApi.get<CenterStatus>('/center')).data;
+export const setCenterConfig = async (patch: { daily_enabled?: boolean; reporting_enabled?: boolean }) => (await cloudApi.put<CenterStatus>('/center', patch)).data;
+export const listFunctionChecks = async () => (await cloudApi.get<{ checks: FunctionCheck[] }>('/function-checks')).data.checks || [];
+export const cleanupFunctionCheck = async (id: string) => { await cloudApi.post(`/function-checks/${encodeURIComponent(id)}/cleanup`, {}); };
+export const fetchCenterSites = async () => (await cloudApi.get<{ sites: CenterSite[]; stale?: boolean }>('/center/sites')).data;

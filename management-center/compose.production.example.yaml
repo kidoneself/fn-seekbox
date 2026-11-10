@@ -1,0 +1,47 @@
+services:
+  public-config:
+    image: local/seekbox-public-config:20261107-scan-pool-1
+    build: .
+    container_name: seekbox-public-config
+    restart: unless-stopped
+    command:
+      - -addr=:8080
+      - -release-public-keys-file=/run/secrets/release-public-keys.json
+      - -db=/data/config.db
+      - -seed=/app/seed.json
+      - -web=/app/web
+      - -admin-password-hash-file=/run/secrets/admin-password-hash
+      - -origin=https://hermes.smartloan.cn
+      - -trusted-proxy=172.18.0.2/32
+    environment:
+      SEEKBOX_SCAN_INTERNAL_URL: http://drive-scan-center:4197
+      SEEKBOX_SCAN_SECRET_FILE: /run/secrets/scan-service-key
+    volumes:
+      - /home/ubuntu/hubstack/drive-scan-center/secrets/scan-service-key:/run/secrets/scan-service-key:ro
+      - ./secrets/release-public-keys.json:/run/secrets/release-public-keys.json:ro
+      - ./data:/data
+      - ./secrets/admin-password-hash:/run/secrets/admin-password-hash:ro
+    networks:
+      - frontend
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 384m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "/app/server", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+networks:
+  frontend:
+    external: true
+    name: hubstack_frontend

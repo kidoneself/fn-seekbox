@@ -1,0 +1,5 @@
+# Place inside existing hermes.smartloan.cn site block; retain all existing handlers.
+@seekbox_config path /api/check-link /api/search-sites /api/client/register /api/client/config /api/client/heartbeat /api/client/events/batch /seekbox-config /seekbox-config/*
+handle @seekbox_config {
+    reverse_proxy seekbox-public-config:8080
+}

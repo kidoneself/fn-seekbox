@@ -98,12 +98,18 @@ func quarkCode(raw json.RawMessage) string {
 	return "unknown"
 }
 
+var errQuarkListingInconsistent = errors.New("夸克文件列表暂未同步，请稍后重试")
+
+var errQuarkOwnShare = errors.New("夸克不允许转存当前账号自己的分享，请换用另一账号提供的小文件")
+
 func quarkAPIError(code string, status int) error {
 	if code == "31001" || code == "31004" || code == "NO_AUTH" || strings.HasPrefix(code, "AUTH_ERROR") || status == http.StatusUnauthorized {
 		return ErrAuthExpired
 	}
 	// Never include upstream messages: some gateways echo request credentials.
 	switch code {
+	case "41017":
+		return errQuarkOwnShare
 	case "32003":
 		return errors.New("夸克未完成转存（错误码 32003），请检查网盘实际结果后重试")
 	case "32004":
@@ -181,9 +187,6 @@ func (p *quarkProvider) request(ctx context.Context, credentials Credentials, me
 	if resp.StatusCode == http.StatusUnauthorized {
 		return result, ErrAuthExpired
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return result, quarkAPIError("HTTP", resp.StatusCode)
-	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, quarkMaxResponseBytes+1))
 	if err != nil {
 		return result, errors.New("读取夸克响应失败")
@@ -192,9 +195,18 @@ func (p *quarkProvider) request(ctx context.Context, credentials Credentials, me
 		return result, errors.New("夸克返回数据过大，已停止处理")
 	}
 	if json.Unmarshal(data, &result) != nil {
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return result, quarkAPIError("HTTP", resp.StatusCode)
+		}
 		return result, errors.New("夸克返回格式异常")
 	}
 	code := quarkCode(result.Code)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if code == "" || code == "0" || code == "null" {
+			code = "HTTP"
+		}
+		return result, quarkAPIError(code, resp.StatusCode)
+	}
 	if code != "0" && !(endpoint == "/account/info" && code == "OK") {
 		return result, quarkAPIError(code, result.Status)
 	}
@@ -292,7 +304,7 @@ func (p *quarkProvider) listFiles(ctx context.Context, credentials Credentials, 
 		}
 		if resp.Metadata.Total != nil {
 			if *resp.Metadata.Total < 0 || (total >= 0 && total != *resp.Metadata.Total) {
-				return nil, errors.New("夸克文件列表在读取时发生变化，请重试")
+				return nil, errQuarkListingInconsistent
 			}
 			total = *resp.Metadata.Total
 			if total > quarkMaxEntries {
@@ -314,7 +326,7 @@ func (p *quarkProvider) listFiles(ctx context.Context, credentials Credentials, 
 				return files, nil
 			}
 			if len(files) > total || len(batch) == 0 {
-				return nil, errors.New("夸克文件列表不完整，请重试")
+				return nil, errQuarkListingInconsistent
 			}
 		} else if len(batch) < quarkPageSize {
 			return files, nil
@@ -502,6 +514,10 @@ func (p *quarkProvider) SaveBatch(ctx context.Context, credentials Credentials, 
 		"pdir_fid": entry.ParentID, "pdir_save_all": false, "exclude_fids": []string{}, "scene": "link",
 	})
 	if err != nil {
+		if errors.Is(err, errQuarkOwnShare) {
+			result.Submitted = false
+			return result, &functionFailure{"SOURCE_UNAVAILABLE", errQuarkOwnShare.Error()}
+		}
 		return result, err
 	}
 	var task struct {

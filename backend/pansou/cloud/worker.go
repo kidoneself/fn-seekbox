@@ -14,14 +14,13 @@ func (s *Service) run() {
 	defer s.wg.Done()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+	dailyTimer := time.NewTimer(time.Until(nextFunctionCheckAt(time.Now())))
+	defer dailyTimer.Stop()
 	for {
 		if s.ctx.Err() != nil {
 			return
 		}
-		s.schedule()
-		owner, job, ok := s.nextJob()
-		if ok {
-			s.execute(owner, job)
+		if s.runCycle() {
 			continue
 		}
 		select {
@@ -29,8 +28,31 @@ func (s *Service) run() {
 			return
 		case <-s.wake:
 		case <-ticker.C:
+		case <-dailyTimer.C:
+			dailyTimer.Reset(time.Until(nextFunctionCheckAt(time.Now())))
 		}
 	}
+}
+
+// Admission spans scheduling, selecting and executing a single work item.
+// In particular, the maintenance transition cannot race a worker claim.
+func (s *Service) runCycle() bool {
+	release, err := s.beginOperation()
+	if err != nil {
+		return false
+	}
+	defer release()
+	s.scheduleFunctions(time.Now())
+	if owner, check, ok := s.nextFunction(); ok {
+		s.executeFunction(owner, check)
+		return true
+	}
+	s.schedule()
+	if owner, job, ok := s.nextJob(); ok {
+		s.execute(owner, job)
+		return true
+	}
+	return false
 }
 
 func (s *Service) schedule() {
@@ -106,6 +128,8 @@ func (s *Service) execute(owner string, job jobRecord) {
 		return
 	}
 	credentials := Credentials{}
+	var progressShare *Share
+	var inspectedAt int64
 	err := func() error {
 		a, p, creds, err := s.account(owner, job.AccountID)
 		if err != nil {
@@ -114,8 +138,11 @@ func (s *Service) execute(owner string, job jobRecord) {
 		credentials = creds
 		ctx = s.credentialContext(ctx, owner, &a)
 		ctx = context.WithValue(ctx, baiduRunKey{}, &baiduRunSession{})
-		if a.Status != "ready" {
+		if a.Status == "expired" {
 			return ErrAuthExpired
+		}
+		if a.Status != "ready" {
+			return errors.New("网盘账号状态异常，请先检查或重新连接账号")
 		}
 		if err = s.canContinue(ctx, owner, job); err != nil {
 			return err
@@ -149,6 +176,7 @@ func (s *Service) execute(owner string, job jobRecord) {
 				return err
 			}
 		}
+		progressShare, inspectedAt = &share, now()
 		sort.SliceStable(share.Entries, func(i, j int) bool { return share.Entries[i].Path < share.Entries[j].Path })
 		directories := map[string]string{".": job.Request.DestinationID}
 		var ensureDirectory func(string) (string, error)
@@ -247,6 +275,13 @@ func (s *Service) execute(owner string, job jobRecord) {
 
 		return nil
 	}()
+	if progressShare != nil {
+		var progressErr error
+		job.Progress, progressErr = s.store.followProgress(owner, job, *progressShare, inspectedAt)
+		if progressErr != nil && err == nil {
+			err = errors.New("读取已保存进度失败，请稍后重新检查")
+		}
+	}
 	job.FinishedAt = now()
 	job.Status = "succeeded"
 	if err != nil {
@@ -262,6 +297,9 @@ func (s *Service) execute(owner string, job jobRecord) {
 	_ = s.store.update(owner, func(state *userState) error {
 		state.Jobs[job.ID] = job
 		if sub, ok := state.Subscriptions[job.SubscriptionID]; ok {
+			if job.Progress != nil {
+				sub.Progress = job.Progress
+			}
 			sub.LastCheckedAt = job.FinishedAt
 			sub.NextCheckAt = job.FinishedAt + int64(sub.IntervalMinutes)*60000
 			sub.Transferred += job.Saved
@@ -277,6 +315,9 @@ func (s *Service) execute(owner string, job jobRecord) {
 		}
 		if errors.Is(err, ErrAuthExpired) {
 			if a, ok := state.Accounts[job.AccountID]; ok {
+				if a.Status != "expired" {
+					a.AuthCheckedAt = now()
+				}
 				a.Status = "expired"
 				a.LastError = ErrAuthExpired.Error()
 				a.UpdatedAt = now()

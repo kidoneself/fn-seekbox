@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import QRCode from 'qrcode';
+import CloudPlanList from './CloudPlanList.vue';
+import CloudAccountChecks from './CloudAccountChecks.vue';
 import { providerLogos } from '@/utils/providerLogos';
 import { getDiskTypeName } from '@/utils/diskTypes';
 import { useCloudDialog } from '@/utils/cloudDialog';
 import {
-  checkCloudAccount, checkCloudSubscription, cloudError, cloudJobActive, cloudJobStatus, cloudTime,
+  getCenterStatus, listFunctionChecks, cleanupFunctionCheck, type CenterStatus, type FunctionCheck,
+  checkCloudAccount, checkCloudSubscription, cloudError, cloudJobActive,
   connectCloudAccount, deleteCloudAccount, deleteCloudSubscription, listCloudAccounts, listCloudJobs,
   listCloudProviders, listCloudSubscriptions, updateCloudSubscription,
   startCloudQR, getCloudQR, completeCloudQR, cancelCloudQR, type CloudQR,
@@ -22,6 +25,8 @@ const providers = ref<ProviderInfo[]>([]);
 const accounts = ref<CloudAccount[]>([]);
 const subscriptions = ref<CloudSubscription[]>([]);
 const jobs = ref<CloudJob[]>([]);
+const checks = ref<FunctionCheck[]>([]);
+const center = ref<CenterStatus | null>(null);
 const loading = ref(true);
 const refreshing = ref(false);
 const busy = ref('');
@@ -40,15 +45,13 @@ const credentials = ref<Record<string, string>>({});
 const loginMode = ref<'headers' | 'session'>('headers');
 const sessionVisible = ref(false);
 const removeAccountID = ref('');
-const removeSubscriptionID = ref('');
-const intervalEdits = ref<Record<string, number>>({});
 let disposed = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 const provider = computed(() => providers.value.find(item => item.id === selectedProvider.value));
 const supportsSession = computed(() => provider.value?.id === 'xunlei' && provider.value.credential_fields.some(field => field.key === 'web_session'));
 const activeCredentialFields = computed(() => (provider.value?.credential_fields || []).filter(field => !supportsSession.value || (loginMode.value === 'session' ? field.key === 'web_session' : field.key !== 'web_session')));
 const credentialsComplete = computed(() => activeCredentialFields.value.length > 0 && activeCredentialFields.value.every(field => (field.optional && field.key !== 'web_session') || credentials.value[field.key]?.trim()));
-const hasActive = computed(() => jobs.value.some(cloudJobActive) || subscriptions.value.some(item => item.enabled));
+const hasActive = computed(() => checks.value.some(c => ['queued', 'running'].includes(c.status) || ['queued', 'running'].includes(c.cleanup_status || '')) || center.value?.config?.reporting_enabled || jobs.value.some(cloudJobActive) || subscriptions.value.some(item => item.enabled));
 watch([selectedProvider, loginMode], () => { credentials.value = {}; sessionVisible.value = false; }, { flush: 'sync' });
 watch(selectedProvider, () => { stopQR(); }, { flush: 'sync' });
 
@@ -103,13 +106,14 @@ const refresh = async (initial = false) => {
   clearTimeout(timer);
   refreshing.value = true;
   try {
-    const values = await Promise.all([listCloudAccounts(), listCloudSubscriptions(), listCloudJobs(), ...(initial ? [listCloudProviders()] : [])]);
+    const values = await Promise.all([listCloudAccounts(), listCloudSubscriptions(), listCloudJobs(), listFunctionChecks(), getCenterStatus(), ...(initial ? [listCloudProviders()] : [])]);
     if (disposed) return;
     accounts.value = values[0] as CloudAccount[];
     subscriptions.value = values[1] as CloudSubscription[];
     jobs.value = values[2] as CloudJob[];
-    if (initial) providers.value = values[3] as ProviderInfo[];
-    for (const item of subscriptions.value) if (!(item.id in intervalEdits.value)) intervalEdits.value[item.id] = item.interval_minutes;
+    checks.value = values[3] as FunctionCheck[];
+    center.value = values[4] as CenterStatus;
+    if (initial) providers.value = values[5] as ProviderInfo[];
   } catch (err) {
     if (!disposed) error.value = cloudError(err);
   } finally {
@@ -183,16 +187,17 @@ const action = async (key: string, callback: () => Promise<unknown>, success: st
     if (!disposed) {
       busy.value = '';
       removeAccountID.value = '';
-      removeSubscriptionID.value = '';
       await refresh();
     }
   }
 };
 
 const accountStatus = (value: string) => ({ ready: '已连接', expired: '登录已失效', error: '连接异常' }[value] || value);
-const subscriptionStatus = (item: CloudSubscription) => !item.enabled ? '已暂停' : ({ idle: '等待检查', running: '正在检查', paused: '已暂停', error: '需要处理' }[item.status] || item.status);
-const accountLabel = (id: string) => accounts.value.find(item => item.id === id)?.name || '账号已移除';
-const intervalValid = (id: string) => Number.isInteger(intervalEdits.value[id]) && intervalEdits.value[id] >= 15 && intervalEdits.value[id] <= 1440;
+const accountCheckState = (id: string) => {
+  const records = checks.value.filter(check => check.account_id === id);
+  if (records.some(check => ['queued', 'running'].includes(check.status) || ['queued', 'running'].includes(check.cleanup_status || ''))) return 'running';
+  return records.some(check => check.cleanup_pending) ? 'cleanup' : 'idle';
+};
 onMounted(async () => { await refresh(true); if (!disposed && props.autoConnect && providers.value.length && !accounts.value.some(a => a.provider === selectedProvider.value && a.status === 'ready')) openForm(); });
 onUnmounted(() => { disposed = true; stopQR(); credentials.value = {}; clearTimeout(timer); });
 </script>
@@ -201,7 +206,7 @@ onUnmounted(() => { disposed = true; stopQR(); credentials.value = {}; clearTime
   <Teleport to="body" :disabled="page">
     <div :class="page ? 'cloud-page' : 'cloud-overlay'" @click.self="!page && close()" @keydown.esc.stop="!page && close()">
       <section ref="dialogElement" :class="page ? 'cloud-page-content' : 'cloud-dialog wide'" :role="page ? 'region' : 'dialog'" :aria-modal="page ? undefined : true" aria-labelledby="cloud-center-title" tabindex="-1">
-        <header class="cloud-header"><div><h2 id="cloud-center-title">{{ tab === 'accounts' ? '我的网盘' : tab === 'subscriptions' ? '我的追更' : '转存记录' }}</h2><p>{{ tab === 'accounts' ? '管理百度、夸克和迅雷账号。' : tab === 'subscriptions' ? '持续关注分享更新，新的内容自动保存到网盘。' : '查看每次转存的进度与结果。' }}</p></div><button v-if="!page" class="cloud-close" type="button" aria-label="关闭网盘中心" :disabled="!!busy" @click="close">×</button><div v-else class="cloud-header-actions"><button class="cloud-button" type="button" :disabled="refreshing || !!busy" @click="error = ''; refresh(!providers.length)">{{ refreshing ? '刷新中…' : '刷新' }}</button><button class="cloud-button" type="button" @click="close">← 返回搜索</button></div></header>
+        <header class="cloud-header"><div><h2 id="cloud-center-title">{{ tab === 'accounts' ? '我的网盘' : tab === 'subscriptions' ? '我的追更' : '转存记录' }}</h2><p>{{ tab === 'accounts' ? '管理百度、夸克和迅雷账号。' : tab === 'subscriptions' ? '按计划管理追更，展开查看执行记录和设置。' : '追更按计划归档，一次转存单独列出。' }}</p></div><button v-if="!page" class="cloud-close" type="button" aria-label="关闭网盘中心" :disabled="!!busy" @click="close">×</button><div v-else class="cloud-header-actions"><button class="cloud-button" type="button" :disabled="refreshing || !!busy" @click="error = ''; refresh(!providers.length)">{{ refreshing ? '刷新中…' : '刷新' }}</button><button class="cloud-button" type="button" @click="close">← 返回搜索</button></div></header>
         <nav v-if="!page" class="cloud-tabs" aria-label="网盘中心导航"><button v-for="item in centerTabs" :key="item.id" type="button" class="cloud-tab" :class="{ active: tab === item.id }" :aria-current="tab === item.id ? 'page' : undefined" @click="tab = item.id">{{ item.name }}</button></nav>
         <div class="cloud-body">
           <div v-if="!page" class="cloud-row"><span class="cloud-help">{{ tab === 'accounts' ? '百度、夸克、迅雷账号分别连接，支持同网盘转存。' : tab === 'subscriptions' ? '持续检查原分享中的新增文件，关闭页面后也会继续。' : '仅以网盘实际返回结果判断是否完成。' }}</span><button class="cloud-button" type="button" :disabled="refreshing || !!busy" @click="error = ''; refresh(!providers.length)">{{ refreshing ? '刷新中…' : '刷新' }}</button></div>
@@ -221,7 +226,7 @@ onUnmounted(() => { disposed = true; stopQR(); credentials.value = {}; clearTime
               <div v-if="authMethod === 'qr'" class="cloud-qr-login" aria-live="polite">
                 <template v-if="provider.qr_login">
                   <img v-if="qrImage && !['failed','expired','cancelled'].includes(qr?.status || '')" :src="qrImage" :alt="provider.name + '官方登录二维码'" width="240" height="240">
-                  <div v-else class="cloud-qr-placeholder">{{ qr?.status === 'failed' || qr?.status === 'expired' ? '请刷新二维码' : busy === 'qr-start' || qr?.status === 'starting' ? '正在获取二维码…' : '扫码登录' }}</div>
+                  <div v-else class="cloud-qr-placeholder">{{ qr?.status === 'failed' || qr?.status === 'expired' ? '请刷新二维码' : qr?.status === 'queued' ? '正在排队…' : busy === 'qr-start' || qr?.status === 'starting' ? '正在获取二维码…' : '扫码登录' }}</div>
                   <p>{{ busy === 'qr-complete' ? '正在校验并保存账号…' : qr?.message || '使用对应网盘 App 扫码，在手机上确认登录。' }}</p>
                   <button type="button" class="cloud-button" :disabled="!!busy" @click="beginQR">刷新二维码</button>
                   <p v-if="!page" class="cloud-help">确认后自动保存到当前飞牛用户，仅用于你的转存和追更。无需填写网盘密码。</p>
@@ -237,34 +242,22 @@ onUnmounted(() => { disposed = true; stopQR(); credentials.value = {}; clearTime
               </div>
             </form>
             <p v-if="!accounts.length && !formOpen" class="cloud-empty">还没有连接网盘账号。连接后即可在搜索结果中转存或添加追更。</p>
-            <article v-for="account in accounts" :key="account.id" class="cloud-card">
-              <div class="cloud-row"><div><h3>{{ account.name }}</h3><p class="cloud-help">{{ getDiskTypeName(account.provider) }}网盘</p></div><span class="cloud-badge" :class="account.status === 'ready' ? 'ready' : 'error'">{{ accountStatus(account.status) }}</span></div>
+            <article v-for="account in accounts" :key="account.id" class="cloud-card cloud-account" :data-account-id="account.id">
+              <div class="account-header">
+                <img class="account-logo" :src="providerLogos[account.provider]" :alt="getDiskTypeName(account.provider)">
+                <div class="account-identity"><h3>{{ account.name }}</h3><p class="cloud-help">{{ getDiskTypeName(account.provider) }}网盘 <span class="cloud-badge" :class="account.status === 'ready' ? 'ready' : 'error'">{{ accountStatus(account.status) }}</span></p></div>
+                <div class="cloud-actions"><button class="cloud-button" type="button" :disabled="!!busy || accountCheckState(account.id) !== 'idle'" @click="action(account.id, () => checkCloudAccount(account.id), '功能检查已排队，结果会更新在对应账号下方')">{{ busy === account.id ? '提交中…' : accountCheckState(account.id) === 'running' ? '检查中…' : accountCheckState(account.id) === 'cleanup' ? '请先清理' : '检查功能' }}</button><button class="cloud-button" type="button" :disabled="!!busy" @click="openForm(account)">重新连接</button><button class="cloud-button danger" type="button" :disabled="!!busy" @click="removeAccountID = account.id">移除账号</button></div>
+              </div>
               <p v-if="account.last_error" class="cloud-error">{{ account.last_error }}</p>
-              <div class="cloud-actions"><button class="cloud-button" type="button" :disabled="!!busy" @click="action(account.id, () => checkCloudAccount(account.id), '账号状态已更新')">{{ busy === account.id ? '校验中…' : '检查登录' }}</button><button class="cloud-button" type="button" :disabled="!!busy" @click="openForm(account)">重新连接</button><button class="cloud-button danger" type="button" :disabled="!!busy" @click="removeAccountID = account.id">移除账号</button></div>
+              <CloudAccountChecks :account-id="account.id" :checks="checks" :busy="!!busy" @cleanup="id => action('cleanup', () => cleanupFunctionCheck(id), '已提交清理，仅处理该次检查的测试目录')" />
               <div v-if="removeAccountID === account.id" class="cloud-note"><p>确认移除这个账号？如有追更任务，请先移除对应追更。网盘中已保存的文件会保留。</p><div class="cloud-actions"><button type="button" class="cloud-button danger" :disabled="!!busy" @click="action('remove-account', () => deleteCloudAccount(account.id), '账号已移除')">确认移除</button><button type="button" class="cloud-button" @click="removeAccountID = ''">取消</button></div></div>
             </article>
           </template>
-          <template v-else-if="tab === 'subscriptions'">
-            <p v-if="!subscriptions.length" class="cloud-empty">还没有追更任务。在搜索结果中点击「追更」，选好账号和目录即可开始。</p>
-            <article v-for="item in subscriptions" :key="item.id" class="cloud-card">
-              <div class="cloud-row"><h3>{{ item.title || '分享资源' }}</h3><span class="cloud-badge" :class="item.last_error ? 'error' : item.enabled ? 'ready' : ''">{{ subscriptionStatus(item) }}</span></div>
-              <p class="cloud-help">{{ getDiskTypeName(item.provider) }} · {{ accountLabel(item.account_id) }} · {{ item.destination_name || '/' }}</p>
-              <p class="cloud-help">累计转存 {{ item.transferred }} 个文件 · 上次检查 {{ cloudTime(item.last_checked_at) }}<br>下次检查 {{ item.enabled ? cloudTime(item.next_check_at) : '已暂停' }}</p>
-              <p v-if="item.last_error" class="cloud-error">{{ item.last_error }}</p>
-              <div class="cloud-actions"><label class="cloud-help" :for="'interval-' + item.id">每</label><input :id="'interval-' + item.id" v-model.number="intervalEdits[item.id]" type="number" min="15" max="1440" step="1" class="cloud-input cloud-interval" :disabled="!!busy" aria-label="检查间隔（分钟）"><span class="cloud-help">分钟检查</span><button class="cloud-button" type="button" :disabled="!!busy || !intervalValid(item.id) || intervalEdits[item.id] === item.interval_minutes" @click="action(item.id, () => updateCloudSubscription(item.id, { interval_minutes: intervalEdits[item.id] }), '检查间隔已更新')">保存间隔</button></div>
-              <div class="cloud-actions" style="margin-top: .7rem"><button class="cloud-button" type="button" :aria-pressed="!!item.filter_ads" :disabled="!!busy || item.status === 'running'" @click="action(item.id, () => updateCloudSubscription(item.id, { filter_ads: !item.filter_ads }), '广告过滤设置已更新，将用于后续检查')">广告过滤：{{ item.filter_ads ? '开' : '关' }}</button><button class="cloud-button" type="button" :disabled="!!busy || item.status === 'running'" @click="action(item.id, () => checkCloudSubscription(item.id), '检查任务已提交，请在转存记录查看实际结果')">立即检查</button><button class="cloud-button" type="button" :disabled="!!busy" @click="action(item.id, () => updateCloudSubscription(item.id, { enabled: !item.enabled }), item.enabled ? '追更已暂停，已开始的任务会继续完成' : '已恢复追更')">{{ item.enabled ? '暂停追更' : '恢复追更' }}</button><a class="cloud-button" :href="item.share_url" target="_blank" rel="noopener noreferrer">查看分享</a><button class="cloud-button danger" type="button" :disabled="!!busy" @click="removeSubscriptionID = item.id">移除追更</button></div>
-              <div v-if="removeSubscriptionID === item.id" class="cloud-note"><p>确认停止并移除这条追更？网盘中已保存的文件会保留。</p><div class="cloud-actions"><button class="cloud-button danger" type="button" :disabled="!!busy" @click="action('remove-subscription', () => deleteCloudSubscription(item.id), '追更已移除')">确认移除</button><button class="cloud-button" type="button" @click="removeSubscriptionID = ''">取消</button></div></div>
-            </article>
-          </template>
-          <template v-else>
-            <p v-if="!jobs.length" class="cloud-empty">还没有转存记录。一次转存和追更检查的结果都会显示在这里。</p>
-            <article v-for="job in jobs" :key="job.id" class="cloud-card">
-              <div class="cloud-row"><h3>{{ job.title || '分享资源' }}</h3><span class="cloud-badge" :class="job.status === 'succeeded' ? 'ready' : ['failed', 'partial', 'interrupted'].includes(job.status) ? 'error' : ''">{{ cloudJobStatus(job.status) }}</span></div>
-              <p class="cloud-help">{{ job.subscription_id ? '持续追更' : '一次转存' }} · {{ getDiskTypeName(job.provider) }} · {{ accountLabel(job.account_id) }} · {{ cloudTime(job.created_at) }}</p>
-              <p class="cloud-help">已保存 {{ job.saved }} 个 · 已跳过 {{ job.skipped }} 个 · 已过滤广告 {{ job.filtered || 0 }} 个 · 共 {{ job.total }} 个</p>
-              <p v-if="job.error" class="cloud-error">{{ job.error }}</p>
-            </article>
-          </template>
+          <CloudPlanList v-else :subscriptions="subscriptions" :jobs="jobs" :accounts="accounts" :busy="!!busy" :records="tab === 'jobs'"
+            @check="id => action(id, () => checkCloudSubscription(id), '检查已提交，执行结果会在当前计划下自动更新')"
+            @toggle="item => action(item.id, () => updateCloudSubscription(item.id, { enabled: !item.enabled }), item.enabled ? '计划已暂停，已开始的任务会继续完成' : '已恢复追更')"
+            @update="(id, patch) => action(id, () => updateCloudSubscription(id, patch), '计划设置已保存')"
+            @remove="id => action(id, () => deleteCloudSubscription(id), '追更计划已移除')" />
         </div>
         <footer v-if="!page" class="cloud-footer"><span v-if="hasActive" class="cloud-help" style="margin-right: auto">运行状态自动刷新</span><button class="cloud-button" type="button" :disabled="!!busy" @click="close">返回</button></footer>
       </section>

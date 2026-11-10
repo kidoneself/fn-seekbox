@@ -14,6 +14,8 @@ esac
 OUT="${SEEKBOX_OUT:-$DEFAULT_OUT}"
 [[ "$OUT" = /* ]] || OUT="$ROOT/$OUT"
 GO_IMAGE="${GO_IMAGE:-golang:1.24.9-bookworm}"
+APP_VERSION="${SEEKBOX_VERSION:-$(awk -F= '/^version[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2}' "$ROOT/manifest")}"
+[[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "无效的构建版本" >&2; exit 1; }
 # sonic 依赖须使用模块指定工具链；避免宿主较新 Go 的运行时变更。
 export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.24.9}"
 
@@ -33,7 +35,7 @@ build_with_go() {
   (
     cd "$SRC"
     CGO_ENABLED=0 GOOS=linux GOARCH="$TARGET_ARCH" GOPROXY="$GOPROXY" \
-      go build -trimpath -ldflags="-s -w" -o "$OUT" .
+      go build -trimpath -ldflags="-s -w -X pansou/buildinfo.Version=$APP_VERSION" -o "$OUT" .
   )
 }
 
@@ -48,7 +50,7 @@ build_with_docker() {
     -e GOARCH="$TARGET_ARCH" \
     -e GOPROXY="$GOPROXY" \
     "$GO_IMAGE" \
-    go build -trimpath -ldflags="-s -w" -o "/out/$(basename "$OUT")" .
+    go build -trimpath -ldflags="-s -w -X pansou/buildinfo.Version=$APP_VERSION" -o "/out/$(basename "$OUT")" .
 }
 
 if command -v go >/dev/null 2>&1; then

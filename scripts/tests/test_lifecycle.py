@@ -32,9 +32,9 @@ class LifecycleTests(unittest.TestCase):
             # Only replace the fixed backend port to avoid touching any locally
             # running app; the startup and readiness functions remain unchanged.
             script = (PROJECT / "cmd/main").read_text(encoding="utf-8")
-            self.assertEqual(script.count('BACKEND_PORT="18888"'), 1)
+            self.assertEqual(script.count('BACKEND_PORT="${SEEKBOX_BACKEND_PORT:-18888}"'), 1)
             lifecycle = root / "main"
-            lifecycle.write_text(script.replace('BACKEND_PORT="18888"', f'BACKEND_PORT="{port}"'), encoding="utf-8")
+            lifecycle.write_text(script.replace('BACKEND_PORT="${SEEKBOX_BACKEND_PORT:-18888}"', f'BACKEND_PORT="{port}"'), encoding="utf-8")
             backend = app / "bin/seekbox"
             backend.write_text(f"#!{sys.executable}\n" + """
 import os, pathlib

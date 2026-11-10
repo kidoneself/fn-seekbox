@@ -8,15 +8,23 @@ import SearchStats from '@/components/SearchStats.vue';
 import SearchConfig from '@/components/SearchConfig.vue';
 import ExportResultsModal from '@/components/ExportResultsModal.vue';
 import CloudCenter from '@/components/CloudCenter.vue';
+import UpdateCenter from '@/components/UpdateCenter.vue';
 import HomeCloudAccounts from '@/components/HomeCloudAccounts.vue';
 import CloudTransferDialog from '@/components/CloudTransferDialog.vue';
 import type { CloudTarget, CloudProvider } from '@/api/cloud';
 import { getDiskTypeName } from '@/utils/diskTypes';
 import { loadLocal, saveLocal, loadPluginSelection } from '@/utils/storage';
 import { appPath } from '@/utils/appPath';
+import { refreshCenterSites, enabledCenterPlugins } from '@/utils/centerSites';
+
+const runningVersion = ref(__APP_VERSION__);
+const appVersion = computed(() => runningVersion.value === 'dev' ? 'dev' : `v${runningVersion.value}`);
+const updateCenterOpen = ref(false);
+const openUpdates = () => { updateCenterOpen.value = true; cloudCenterOpen.value = false; currentPage.value = 'search'; };
 
 // 后端健康状态缓存（应用启动时获取一次）
 const backendHealth = ref<HealthStatus | null>(null);
+watch(backendHealth, health => { if (health?.version) runningVersion.value = health.version; });
 
 // 搜索状态
 const loading = ref(false);
@@ -47,9 +55,10 @@ const cloudInitialProvider = ref<CloudProvider | undefined>();
 const cloudAutoConnect = ref(false);
 const cloudRevision = ref(0);
 const workspaceTabs = [{ id: 'accounts', name: '我的网盘' }, { id: 'subscriptions', name: '我的追更' }, { id: 'jobs', name: '转存记录' }] as const;
-const returnToSearch = () => { cloudCenterOpen.value = false; currentPage.value = 'search'; cloudRevision.value++; nextTick(syncMobileSearchLayout); };
+const returnToSearch = () => { updateCenterOpen.value = false; cloudCenterOpen.value = false; currentPage.value = 'search'; cloudRevision.value++; nextTick(syncMobileSearchLayout); };
 
 const openCloudCenter = (tab: 'accounts' | 'subscriptions' | 'jobs') => {
+  updateCenterOpen.value = false;
   cloudInitialProvider.value = cloudTarget.value?.provider;
   cloudAutoConnect.value = false;
   currentPage.value = 'search';
@@ -111,6 +120,7 @@ const isEmbedded = (() => {
 })();
 
 const switchToStatus = () => {
+  updateCenterOpen.value = false;
   currentPage.value = 'status';
 };
 
@@ -118,6 +128,7 @@ const switchToStatus = () => {
 const initBackendHealth = async () => {
   try {
     backendHealth.value = await getHealth();
+    void refreshCenterSites();
   } catch (err) {
     console.error('获取后端健康状态失败:', err);
     backendHealth.value = null;
@@ -133,7 +144,7 @@ const checkConfig = () => {
     if (savedPlugins !== null) {
       return {
         channels: [],
-        plugins: loadPluginSelection(backendHealth.value?.plugins)
+        plugins: enabledCenterPlugins(loadPluginSelection(backendHealth.value?.plugins))
       };
     }
     
@@ -141,7 +152,7 @@ const checkConfig = () => {
     if (backendHealth.value) {
       return {
         channels: [],
-        plugins: backendHealth.value.plugins || []
+        plugins: enabledCenterPlugins(backendHealth.value.plugins || [])
       };
     }
     
@@ -955,14 +966,18 @@ onUnmounted(() => {
     <header ref="navHeaderRef" class="workspace-header">
       <button v-if="!isEmbedded" class="workspace-brand" type="button" @click="returnToSearch"><img :src="appPath('/logo.svg')" alt="" width="28" height="28"><span>小白搜盘</span></button>
       <nav class="workspace-navigation" aria-label="主导航">
-        <button type="button" :class="{ active: !cloudCenterOpen }" :aria-current="!cloudCenterOpen ? 'page' : undefined" @click="returnToSearch">搜索资源</button>
+        <button type="button" :class="{ active: !cloudCenterOpen && !updateCenterOpen }" :aria-current="!cloudCenterOpen && !updateCenterOpen ? 'page' : undefined" @click="returnToSearch">搜索资源</button>
         <button v-for="item in workspaceTabs" :key="item.id" type="button" :class="{ active: cloudCenterOpen && cloudCenterTab === item.id }" :aria-current="cloudCenterOpen && cloudCenterTab === item.id ? 'page' : undefined" @click="openCloudCenter(item.id)">{{ item.name }}</button>
       </nav>
-      <div class="workspace-tools"><button type="button" aria-label="来源设置" title="来源设置" @click="switchToStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg><span>搜索设置</span></button><a v-if="isEmbedded" :href="browserUrl" target="_blank" rel="noopener noreferrer" aria-label="在浏览器中打开" title="在浏览器中打开">↗</a></div>
+      <div class="workspace-tools">
+        <button type="button" aria-label="来源设置" title="来源设置" @click="switchToStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg><span>搜索设置</span></button>
+        <a v-if="isEmbedded" :href="browserUrl" target="_blank" rel="noopener noreferrer" aria-label="在浏览器中打开" title="在浏览器中打开">↗</a>
+        <button class="workspace-version" type="button" :aria-label="`当前版本 ${appVersion}，软件更新`" title="软件更新" :aria-pressed="updateCenterOpen" @click="openUpdates">{{ appVersion }}</button>
+      </div>
     </header>
     
     <!-- 主要内容区域 -->
-    <div v-show="!cloudCenterOpen" class="workspace-layout">
+    <div v-show="!cloudCenterOpen && !updateCenterOpen" class="workspace-layout">
     <main
       ref="mainContentRef"
       class="main-content flex-1"
@@ -1048,7 +1063,8 @@ onUnmounted(() => {
     </main>
     </div>
 
-    <CloudTransferDialog v-if="cloudTarget" :target="cloudTarget" :visible="!cloudCenterOpen" @close="cloudTarget = null" @accounts="openCloudCenter('accounts')" @records="openCloudRecords" />
+    <UpdateCenter v-if="updateCenterOpen" @close="returnToSearch" @version="runningVersion = $event" />
+    <CloudTransferDialog v-if="cloudTarget && !updateCenterOpen" :target="cloudTarget" :visible="!cloudCenterOpen" @close="cloudTarget = null" @accounts="openCloudCenter('accounts')" @records="openCloudRecords" />
     <CloudCenter v-if="cloudCenterOpen" :key="cloudCenterTab" :page="true" :initial-tab="cloudCenterTab" :initial-provider="cloudInitialProvider" :auto-connect="cloudAutoConnect" @connected="cloudRevision++" @close="returnToSearch" />
 
     <Teleport to="body">

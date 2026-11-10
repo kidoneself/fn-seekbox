@@ -33,6 +33,8 @@ interface ApiResponse<T> {
 
 // 健康状态接口（基于实际API返回）
 export interface HealthStatus {
+  version?: string;
+  bootstrap_version?: number;
   status: string;
   plugins_enabled: boolean;
   plugin_count: number;

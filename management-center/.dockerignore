@@ -1,0 +1,8 @@
+**
+!Dockerfile
+!build/
+!build/server
+!frontend/
+!frontend/dist/
+!frontend/dist/**
+!seed.json
