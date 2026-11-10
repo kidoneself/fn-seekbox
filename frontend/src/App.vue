@@ -14,6 +14,9 @@ import type { CloudTarget, CloudProvider } from '@/api/cloud';
 import { getDiskTypeName } from '@/utils/diskTypes';
 import { loadLocal, saveLocal, loadPluginSelection } from '@/utils/storage';
 import { appPath } from '@/utils/appPath';
+import { refreshCenterSites, enabledCenterPlugins } from '@/utils/centerSites';
+
+const appVersion = __APP_VERSION__ === 'dev' ? 'dev' : `v${__APP_VERSION__}`;
 
 // 后端健康状态缓存（应用启动时获取一次）
 const backendHealth = ref<HealthStatus | null>(null);
@@ -118,6 +121,7 @@ const switchToStatus = () => {
 const initBackendHealth = async () => {
   try {
     backendHealth.value = await getHealth();
+    void refreshCenterSites();
   } catch (err) {
     console.error('获取后端健康状态失败:', err);
     backendHealth.value = null;
@@ -133,7 +137,7 @@ const checkConfig = () => {
     if (savedPlugins !== null) {
       return {
         channels: [],
-        plugins: loadPluginSelection(backendHealth.value?.plugins)
+        plugins: enabledCenterPlugins(loadPluginSelection(backendHealth.value?.plugins))
       };
     }
     
@@ -141,7 +145,7 @@ const checkConfig = () => {
     if (backendHealth.value) {
       return {
         channels: [],
-        plugins: backendHealth.value.plugins || []
+        plugins: enabledCenterPlugins(backendHealth.value.plugins || [])
       };
     }
     
@@ -958,7 +962,11 @@ onUnmounted(() => {
         <button type="button" :class="{ active: !cloudCenterOpen }" :aria-current="!cloudCenterOpen ? 'page' : undefined" @click="returnToSearch">搜索资源</button>
         <button v-for="item in workspaceTabs" :key="item.id" type="button" :class="{ active: cloudCenterOpen && cloudCenterTab === item.id }" :aria-current="cloudCenterOpen && cloudCenterTab === item.id ? 'page' : undefined" @click="openCloudCenter(item.id)">{{ item.name }}</button>
       </nav>
-      <div class="workspace-tools"><button type="button" aria-label="来源设置" title="来源设置" @click="switchToStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg><span>搜索设置</span></button><a v-if="isEmbedded" :href="browserUrl" target="_blank" rel="noopener noreferrer" aria-label="在浏览器中打开" title="在浏览器中打开">↗</a></div>
+      <div class="workspace-tools">
+        <button type="button" aria-label="来源设置" title="来源设置" @click="switchToStatus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6M16 14v6"/></svg><span>搜索设置</span></button>
+        <a v-if="isEmbedded" :href="browserUrl" target="_blank" rel="noopener noreferrer" aria-label="在浏览器中打开" title="在浏览器中打开">↗</a>
+        <span class="workspace-version" :aria-label="`当前版本 ${appVersion}`" :title="`当前版本 ${appVersion}`">{{ appVersion }}</span>
+      </div>
     </header>
     
     <!-- 主要内容区域 -->

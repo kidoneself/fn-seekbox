@@ -1,10 +1,12 @@
 package cloud
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	stableJSON "encoding/json"
 	"errors"
 	"os"
 	"pansou/util/json"
@@ -26,9 +28,11 @@ type jobRecord struct {
 	Request TransferRequest `json:"request"`
 }
 type userState struct {
-	Accounts      map[string]storedAccount `json:"accounts"`
-	Subscriptions map[string]Subscription  `json:"subscriptions"`
-	Jobs          map[string]jobRecord     `json:"jobs"`
+	Center        centerRecord              `json:"center"`
+	Checks        map[string]functionRecord `json:"function_checks"`
+	Accounts      map[string]storedAccount  `json:"accounts"`
+	Subscriptions map[string]Subscription   `json:"subscriptions"`
+	Jobs          map[string]jobRecord      `json:"jobs"`
 }
 type store struct {
 	db   *bolt.DB
@@ -92,13 +96,20 @@ func openStore(dir string) (*store, error) {
 		db.Close()
 		return nil, err
 	}
-	err = db.Update(func(tx *bolt.Tx) error {
-		if _, e := tx.CreateBucketIfNotExists(usersBucket); e != nil {
-			return e
-		}
-		_, e := tx.CreateBucketIfNotExists(marksBucket)
-		return e
+	var initialized bool
+	err = db.View(func(tx *bolt.Tx) error {
+		initialized = tx.Bucket(usersBucket) != nil && tx.Bucket(marksBucket) != nil
+		return nil
 	})
+	if err == nil && !initialized {
+		err = db.Update(func(tx *bolt.Tx) error {
+			if _, e := tx.CreateBucketIfNotExists(usersBucket); e != nil {
+				return e
+			}
+			_, e := tx.CreateBucketIfNotExists(marksBucket)
+			return e
+		})
+	}
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -112,6 +123,12 @@ func readState(tx *bolt.Tx, owner string) (userState, error) {
 		if err := json.Unmarshal(raw, &s); err != nil {
 			return s, err
 		}
+	}
+	if s.Checks == nil {
+		s.Checks = map[string]functionRecord{}
+	}
+	if s.Center.LastSlots == nil {
+		s.Center.LastSlots = map[string]int64{}
 	}
 	if s.Accounts == nil {
 		s.Accounts = map[string]storedAccount{}
@@ -135,8 +152,10 @@ func (s *store) read(owner string) (userState, error) {
 	return state, err
 }
 
+var errUnchanged = errors.New("state unchanged")
+
 func (s *store) update(owner string, fn func(*userState) error) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	err := s.db.Update(func(tx *bolt.Tx) error {
 		state, err := readState(tx, owner)
 		if err != nil {
 			return err
@@ -144,12 +163,21 @@ func (s *store) update(owner string, fn func(*userState) error) error {
 		if err = fn(&state); err != nil {
 			return err
 		}
-		raw, err := json.Marshal(state)
+		raw, err := stableJSON.Marshal(state)
 		if err != nil {
 			return err
 		}
+		if bytes.Equal(tx.Bucket(usersBucket).Get([]byte(owner)), raw) {
+			return errUnchanged
+		}
 		return tx.Bucket(usersBucket).Put([]byte(owner), raw)
 	})
+	// Roll back a no-op transaction; bbolt commits otherwise sync metadata even
+	// when no business data changed. Actual changes still use durable commits.
+	if errors.Is(err, errUnchanged) {
+		return nil
+	}
+	return err
 }
 
 func (s *store) owners() ([]string, error) {
@@ -217,7 +245,7 @@ func (s *store) saveJobMarks(owner string, job jobRecord, marks map[string]strin
 			return ErrNotFound
 		}
 		state.Jobs[job.ID] = job
-		raw, err := json.Marshal(state)
+		raw, err := stableJSON.Marshal(state)
 		if err != nil {
 			return err
 		}

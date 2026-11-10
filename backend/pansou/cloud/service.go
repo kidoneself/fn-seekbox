@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os/exec"
 	"pansou/util/json"
@@ -18,6 +19,9 @@ import (
 )
 
 type Service struct {
+	centerBase   string
+	centerClient *http.Client
+	centerMu     sync.Mutex
 	store        *store
 	providers    map[string]Provider
 	ctx          context.Context
@@ -25,6 +29,7 @@ type Service struct {
 	wake         chan struct{}
 	wg           sync.WaitGroup
 	accountLocks sync.Map
+	loginLocks   sync.Map
 	qrMu         sync.Mutex
 	qrSessions   map[string]*qrLogin
 	qrCommand    func(context.Context, string) *exec.Cmd
@@ -36,14 +41,34 @@ func NewService(dir string, providers []Provider) (*Service, error) {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Service{store: st, providers: map[string]Provider{}, ctx: ctx, cancel: cancel, wake: make(chan struct{}, 1)}
+	s := &Service{centerBase: defaultCenterURL, centerClient: centerHTTPClient(), store: st, providers: map[string]Provider{}, ctx: ctx, cancel: cancel, wake: make(chan struct{}, 1)}
 	for _, p := range providers {
 		s.providers[p.ID()] = p
 	}
 	owners, err := st.owners()
 	if err == nil {
 		for _, owner := range owners {
+			state, readErr := st.read(owner)
+			if readErr != nil {
+				err = readErr
+				break
+			}
+			recoveryNeeded := false
+			for _, job := range state.Jobs {
+				if job.Status == "running" {
+					recoveryNeeded = true
+				}
+			}
+			for _, check := range state.Checks {
+				if check.Status == "running" || check.CleanupStatus == "running" || (check.Status == "queued" && check.Trigger != "manual" && check.ScheduledFor < midnight(time.Now()).UnixMilli()) {
+					recoveryNeeded = true
+				}
+			}
+			if !recoveryNeeded {
+				continue
+			}
 			err = st.update(owner, func(state *userState) error {
+				recoverFunctions(state)
 				for id, job := range state.Jobs {
 					if job.Status != "running" {
 						continue
@@ -67,8 +92,9 @@ func NewService(dir string, providers []Provider) (*Service, error) {
 		st.db.Close()
 		return nil, err
 	}
-	s.wg.Add(1)
+	s.wg.Add(2)
 	go s.run()
+	go s.centerLoop()
 	return s, nil
 }
 
@@ -126,6 +152,11 @@ func (s *Service) Accounts(owner string) ([]Account, error) {
 }
 
 func accountBusy(state *userState, id string) bool {
+	for _, check := range state.Checks {
+		if check.AccountID == id && (active(check.Status) || active(check.CleanupStatus)) {
+			return true
+		}
+	}
 	for _, job := range state.Jobs {
 		if job.AccountID == id && active(job.Status) {
 			return true
@@ -205,6 +236,40 @@ func (s *Service) Connect(ctx context.Context, owner, id, provider, name string,
 	if err != nil {
 		return Account{}, errors.New(safeError(err, credentials))
 	}
+	// A new QR session is not necessarily a new cloud account. Serialize new
+	// logins by validated identity, then reuse the original record so its
+	// subscriptions and transfer journal keep the same account ID.
+	if !isUpdate && identity.ID != "" {
+		unlock, err := lockOperation(ctx, &s.loginLocks, digest(owner, provider, identity.ID))
+		if err != nil {
+			return Account{}, err
+		}
+		defer unlock()
+		current, err := s.store.read(owner)
+		if err != nil {
+			return Account{}, err
+		}
+		var matched *Account
+		for _, candidate := range current.Accounts {
+			if candidate.Provider != provider || candidate.ProviderUserID != identity.ID {
+				continue
+			}
+			if matched == nil || candidate.CreatedAt < matched.CreatedAt || (candidate.CreatedAt == matched.CreatedAt && candidate.ID < matched.ID) {
+				copy := candidate.Account
+				matched = &copy
+			}
+		}
+		if matched != nil {
+			unlockAccount, err := s.lockAccount(ctx, owner, matched.ID)
+			if err != nil {
+				return Account{}, err
+			}
+			defer unlockAccount()
+			id, created, isUpdate = matched.ID, matched.CreatedAt, true
+			// Scanning from the add-account entry should not replace a remark.
+			name = matched.Name
+		}
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = identity.Name
@@ -219,7 +284,7 @@ func (s *Service) Connect(ctx context.Context, owner, id, provider, name string,
 	if err != nil {
 		return Account{}, err
 	}
-	account := Account{ID: id, Provider: provider, ProviderUserID: identity.ID, Name: name, Status: "ready", CreatedAt: created, UpdatedAt: now()}
+	account := Account{ID: id, Provider: provider, ProviderUserID: identity.ID, Name: name, Status: "ready", AuthCheckedAt: now(), CreatedAt: created, UpdatedAt: now()}
 	err = s.store.update(owner, func(state *userState) error {
 		if existing, exists := state.Accounts[id]; exists {
 			if existing.ProviderUserID != "" && existing.ProviderUserID != identity.ID {
@@ -240,7 +305,9 @@ func (s *Service) Connect(ctx context.Context, owner, id, provider, name string,
 		state.Accounts[id] = storedAccount{Account: account, Secret: secret}
 		return nil
 	})
-	s.notify()
+	if err == nil {
+		s.notify()
+	}
 	return account, err
 }
 
@@ -285,6 +352,7 @@ func (s *Service) CheckAccount(ctx context.Context, owner, id string) (Account, 
 			return ErrBusy
 		}
 		current.Status, current.LastError, current.UpdatedAt = "ready", "", now()
+		current.AuthCheckedAt = now()
 		if checkErr != nil {
 			current.Status, current.LastError = "error", safeError(checkErr, credentials)
 			if errors.Is(checkErr, ErrAuthExpired) {
@@ -300,6 +368,11 @@ func (s *Service) CheckAccount(ctx context.Context, owner, id string) (Account, 
 
 func (s *Service) DeleteAccount(owner, id string) error {
 	return s.store.update(owner, func(state *userState) error {
+		for _, r := range state.Checks {
+			if r.AccountID == id && r.CleanupPending {
+				return errors.New("请先清理该账号遗留的测试目录")
+			}
+		}
 		if _, ok := state.Accounts[id]; !ok {
 			return ErrNotFound
 		}

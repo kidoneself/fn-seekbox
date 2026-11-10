@@ -100,6 +100,9 @@ type xunleiFailure struct {
 }
 
 func (e *xunleiFailure) Error() string {
+	if e.kind == "file_restore_own" {
+		return "迅雷不允许转存当前账号自己的分享，请换用另一账号提供的小文件"
+	}
 	if e.Is(ErrAuthExpired) {
 		return "迅雷登录或验证令牌已失效，请重新连接"
 	}
@@ -606,6 +609,11 @@ func (p *xunleiProvider) SaveBatch(ctx context.Context, c Credentials, share Sha
 	result.Submitted = true
 	err = p.request(ctx, c, "POST", "/share/restore", nil, map[string]any{"parent_id": target, "share_id": share.ID, "pass_code_token": share.Data["pass_code_token"], "ancestor_ids": ancestors, "file_ids": ids, "specify_parent_id": true}, &out)
 	if err != nil {
+		var rejected *xunleiFailure
+		if errors.As(err, &rejected) && rejected.kind == "file_restore_own" {
+			result.Submitted = false
+			return result, &functionFailure{"SOURCE_UNAVAILABLE", rejected.Error()}
+		}
 		return result, err
 	}
 	if out.RestoreTaskID != "" {

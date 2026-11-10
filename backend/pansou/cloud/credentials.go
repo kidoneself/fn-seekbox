@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"errors"
+	"sync"
 )
 
 type credentialCommitKey struct{}
@@ -50,7 +51,14 @@ func (s *Service) credentialContext(ctx context.Context, owner string, account *
 // Serialize calls for the same account, including browsing and background
 // jobs, so two requests cannot rotate the same refresh token concurrently.
 func (s *Service) lockAccount(ctx context.Context, owner, id string) (func(), error) {
-	value, _ := s.accountLocks.LoadOrStore(digest(owner, id), make(chan struct{}, 1))
+	return lockOperation(ctx, &s.accountLocks, digest(owner, id))
+}
+
+func lockOperation(ctx context.Context, locks *sync.Map, key string) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	value, _ := locks.LoadOrStore(key, make(chan struct{}, 1))
 	lock := value.(chan struct{})
 	select {
 	case lock <- struct{}{}:

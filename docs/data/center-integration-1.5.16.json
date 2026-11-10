@@ -1,0 +1,73 @@
+{
+  "version": "1.5.16",
+  "date": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "six_client_interfaces_integrated": true,
+  "nas_assets_verified": true,
+  "accounts_preserved": 3,
+  "plans_preserved": 3,
+  "all_check_rows_matched": 14,
+  "manual_successful_cycles": 3,
+  "daily_successful_slots": 0,
+  "online_instances": 1,
+  "valid_accounts": 3,
+  "functional_accounts": 2,
+  "pending_events": 0,
+  "rejected_events": 0,
+  "pending_cleanup": 0,
+  "stage_events_verified": true,
+  "new_runs": [
+    {
+      "provider": "quark",
+      "run_id": "4ITXKTHLXP6KJYJBMULLTIJCVD",
+      "source_version": "3",
+      "result": "passed",
+      "cleanup_status": null,
+      "counted_value": 1,
+      "completion_method": "initial",
+      "error_code": ""
+    },
+    {
+      "provider": "baidu",
+      "run_id": "F4YUONW5SAEI5OHLXZZRMZIC2W",
+      "source_version": "5",
+      "result": "passed",
+      "cleanup_status": null,
+      "counted_value": 1,
+      "completion_method": "initial",
+      "error_code": ""
+    },
+    {
+      "provider": "xunlei",
+      "run_id": "DOMHPLC73KCYDG6F27Y6LF6GJJ",
+      "source_version": "3",
+      "result": "failed",
+      "cleanup_status": null,
+      "counted_value": 0,
+      "completion_method": "",
+      "error_code": "TEST_FILE_TOO_LARGE"
+    },
+    {
+      "provider": "quark",
+      "run_id": "FBQGGPBRCS36BRSWNGUSLRWFM2",
+      "source_version": "3",
+      "result": "incomplete",
+      "cleanup_status": "passed",
+      "counted_value": 1,
+      "completion_method": "cleanup_recovery",
+      "error_code": "DELETE_FAILED"
+    },
+    {
+      "provider": "baidu",
+      "run_id": "EITPNNH6WTEK63GPTFOK3POOLO",
+      "source_version": "4",
+      "result": "failed",
+      "cleanup_status": null,
+      "counted_value": 0,
+      "completion_method": "",
+      "error_code": "TARGET_PREPARE_FAILED"
+    }
+  ],
+  "remaining": "迅雷 source_version=3 为多个 GB 级文件，需小文件分享才能完成实机闭环。",
+  "config_fix": "百度链接内提取码已通过百度验证，修正独立 password 字段；source_version=5，其余字段保留。"
+}

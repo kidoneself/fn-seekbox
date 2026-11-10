@@ -1,0 +1,22 @@
+{
+  "version": "1.5.15",
+  "assets_verified": true,
+  "accounts": 3,
+  "plans": 3,
+  "passed_checks": 0,
+  "pending_cleanup": [],
+  "center": {
+    "config": {
+      "daily_enabled": true,
+      "reporting_enabled": true,
+      "enabled_since": 1793892560372
+    },
+    "connected": true,
+    "pending_events": 1,
+    "last_report_at": 1793896474587,
+    "last_error": "",
+    "sites_updated_at": 1793892579676,
+    "rejected_events": 0,
+    "report_error": ""
+  }
+}

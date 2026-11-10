@@ -5,6 +5,7 @@ import type { DetectionSettings } from '@/types';
 import { loadDetectionSettings, persistDetectionSettings } from '@/utils/linkDetection';
 import { loadLocal, saveLocal, loadPluginSelection } from '@/utils/storage';
 import { appPath } from '@/utils/appPath';
+import { refreshCenterSites, enabledCenterPlugins, centerPluginName, centerSitesError } from '@/utils/centerSites';
 
 const props = defineProps<{
   backendHealth: HealthStatus | null;
@@ -63,7 +64,7 @@ const pingTitle = (kind: 'net' | 'use', state: string) => {
   return `${name}：${pingLabel(kind, state)}`;
 };
 
-const availablePlugins = computed(() => healthData.value?.plugins || []);
+const availablePlugins = computed(() => enabledCenterPlugins(healthData.value?.plugins || []));
 
 const stats = computed(() => ({
   plugins: selectedPlugins.value.length,
@@ -203,6 +204,7 @@ const copyPluginsConfig = async () => {
 };
 
 onMounted(() => {
+  void refreshCenterSites().then(() => { selectedPlugins.value = enabledCenterPlugins(selectedPlugins.value); });
   initHealth();
   loadConfig();
   detectionSettings.value = loadDetectionSettings();
@@ -273,7 +275,7 @@ onMounted(() => {
           <div class="pane-header">
             <div class="pane-title">
               <h3>搜索来源</h3>
-              <span class="selected-count">已启用 {{ selectedPlugins.length }} / {{ availablePlugins.length }}</span>
+              <span v-if="centerSitesError" class="selected-count">{{ centerSitesError }}</span><span class="selected-count">已启用 {{ selectedPlugins.length }} / {{ availablePlugins.length }}</span>
             </div>
             <div class="pane-actions">
               <button @click="toggleAllPlugins" class="action-btn">
@@ -293,7 +295,7 @@ onMounted(() => {
                 @click="togglePlugin(plugin)"
               >
                 <div class="item-main">
-                  <div class="item-name">{{ plugin }}</div>
+                  <div class="item-name">{{ centerPluginName(plugin) }}</div>
                   <div class="plugin-statuses" aria-label="来源检测状态">
                     <span class="plugin-status" :title="pingTitle('net', pingNet(plugin))">
                       <span class="ping-dot" :class="'is-' + pingNet(plugin)"></span>

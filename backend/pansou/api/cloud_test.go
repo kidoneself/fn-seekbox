@@ -366,3 +366,26 @@ func TestCloudAPIRejectsTrailingJSON(t *testing.T) {
 		t.Fatal("trailing payload reached provider")
 	}
 }
+
+func TestCloudFunctionSettingsIsolationAndGuard(t *testing.T) {
+	r, _ := cloudAPITestRouter(t)
+	// Daily checks alone never register or upload telemetry.
+	resp := cloudAPIRequest(t, r, "PUT", "/api/cloud/center", "alice", map[string]any{"daily_enabled": true}, nil)
+	if resp.Code != 200 {
+		t.Fatal(resp.Code, resp.Body.String())
+	}
+	resp = cloudAPIRequest(t, r, "GET", "/api/cloud/center", "bob", nil, nil)
+	if resp.Code != 200 || strings.Contains(resp.Body.String(), `"daily_enabled":true`) {
+		t.Fatal("owner settings leaked")
+	}
+	for _, route := range []string{"/api/cloud/accounts/foreign/function-check", "/api/cloud/function-checks/foreign/cleanup"} {
+		resp = cloudAPIRequest(t, r, "POST", route, "alice", map[string]any{}, map[string]string{"X-Seekbox-Action": ""})
+		if resp.Code != 403 {
+			t.Fatal("missing action header accepted", route, resp.Code)
+		}
+	}
+	resp = cloudAPIRequest(t, r, "GET", "/api/cloud/function-checks", "", nil, nil)
+	if resp.Code != 401 {
+		t.Fatal("unauthenticated records access")
+	}
+}

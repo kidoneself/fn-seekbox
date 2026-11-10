@@ -1,0 +1,91 @@
+// Run against the local Vite server. All cloud requests use test fixtures.
+const { chromium } = require('../../app/auth/node_modules/playwright-core');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+(async () => {
+  const browser = await chromium.launch({ executablePath: path.resolve(__dirname, '../../app/auth/chromium/chrome-headless-shell'), headless: true, args: ['--no-sandbox'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    const now = Date.now();
+    const accounts = ['baidu', 'quark', 'xunlei'].map((provider, i) => ({ id: 'a' + i, provider, name: ['百度主账号', '夸克主账号', '迅雷主账号'][i], status: 'ready', last_error: '', created_at: now, updated_at: now }));
+    let subscriptions = accounts.map((a, i) => ({ id: 'p' + i, account_id: a.id, provider: a.provider, title: i === 2 ? '摄影教程 · 每周更新' : '伟大的长征（2026）', interval_minutes: 60, enabled: i !== 2, status: i === 1 ? 'error' : 'idle', last_error: i === 1 ? '目标目录已有同名文件，请选择其他目录' : '', transferred: [50,43,12][i], last_checked_at: now - 60000, next_check_at: now + 3540000, destination_name: '/追更/' + (i === 2 ? '摄影教程' : '伟大的长征'), share_url: 'https://pan.baidu.com/s/test', filter_ads: true, created_at: now }));
+    subscriptions[0].progress = { source:{kind:'episode',label:'第50集',evidence:'50.mkv'},saved:{kind:'episode',label:'第48集',evidence:'48.mkv'},confirmed_files:48,checked_at:now-60000 };
+    subscriptions[1].progress = { source:{kind:'issue',label:'第7期（下）',evidence:'节目第7期下.mp4'},saved:{kind:'issue',label:'第7期（上）',evidence:'节目第7期上.mp4'},confirmed_files:13,checked_at:now-60000 };
+    let jobs = Array.from({ length: 11 }, (_, i) => ({ id: 'j' + i, account_id: 'a0', provider: 'baidu', subscription_id: 'p0', title: subscriptions[0].title, status: 'succeeded', saved: i === 0 ? 2 : 0, skipped: i === 0 ? 48 : 50, filtered: 0, total: 50, error: '', created_at: now - 60000 - i * 3600000, finished_at: now - 58000 - i * 3600000 }));
+    jobs.push({ ...jobs[0], id:'quark-error', subscription_id:'p1', account_id:'a1', provider:'quark', status:'failed', saved:0, skipped:43, total:45, error:subscriptions[1].last_error });
+    jobs.push({ ...jobs[0], id:'removed', subscription_id:'removed-plan', title:'已移除的测试计划' });
+    jobs.push({ ...jobs[0], id:'once', subscription_id:'', title:'一次转存测试' });
+    const requests = [];
+    await page.route('**/api/**', async route => {
+      const request = route.request(), url = new URL(request.url()), method = request.method();
+      if (!url.pathname.startsWith('/api/')) return route.continue();
+      requests.push({ path: url.pathname, method });
+      let payload = {};
+      if (url.pathname.endsWith('/cloud/accounts')) payload = { accounts };
+      else if (url.pathname.endsWith('/cloud/providers')) payload = { providers: [] };
+      else if (url.pathname.endsWith('/cloud/jobs')) payload = { jobs };
+      else if (url.pathname.endsWith('/cloud/subscriptions')) payload = { subscriptions };
+      else if (url.pathname.includes('/cloud/subscriptions/')) {
+        const id = url.pathname.split('/')[4], item = subscriptions.find(s => s.id === id);
+        if (method === 'PATCH') { Object.assign(item, request.postDataJSON()); payload = { subscription:item }; }
+        if (method === 'DELETE') subscriptions = subscriptions.filter(s => s.id !== id);
+        if (method === 'POST') payload = { job:jobs[0] };
+      }
+      else if (url.pathname.includes('health')) payload = { status:'ok', plugins:[] };
+      else payload = { plugins:[], sources:[], results:[], data:[] };
+      await route.fulfill({ contentType:'application/json', body:JSON.stringify(payload) });
+    });
+    await page.goto(process.env.SEEKBOX_PREVIEW_URL || 'http://127.0.0.1:5178/');
+    await page.locator('.workspace-navigation').getByRole('button', { name:'我的追更', exact:true }).click();
+    await page.locator('.plan').first().waitFor();
+    assert.equal(await page.locator('.plan').count(), 3, 'one row per plan, not execution');
+    assert.equal(await page.locator('.execution-log').count(), 0, 'logs start collapsed');
+    const first = page.locator('.plan').first();
+    assert.match(await first.locator('.plan-progress').innerText(), /分享 第50集/);
+    assert.match(await first.locator('.plan-progress').innerText(), /已保存 第48集/);
+    await first.locator('.plan-toggle').click();
+    assert.match(await first.locator('.progress-detail').innerText(), /50.mkv/);
+    assert.equal(await first.locator('tbody > tr').count(), 6);
+    await page.locator('.cloud-page').evaluate(el => { el.scrollTop = 0; });
+    await page.screenshot({ path:'/tmp/seekbox-plans-desktop.png', fullPage:true });
+    await first.getByRole('button', { name:/查看更多/ }).click();
+    assert.equal(await first.locator('tbody > tr').count(), 11);
+    await first.getByRole('button', { name:'日志', exact:true }).first().click();
+    assert.match(await first.locator('.log-detail').innerText(), /本次保存 2 个文件/);
+    await first.getByRole('button', { name:'计划设置', exact:true }).click();
+    await first.getByLabel('检查间隔', { exact:true }).fill('90');
+    await first.getByRole('button', { name:'保存', exact:true }).click();
+    await page.waitForFunction(() => document.querySelector('.plan-name small')?.textContent.includes('90'));
+    assert.equal(subscriptions[0].interval_minutes,90);
+    assert.equal(await first.locator('.plan-content').count(),1,'refresh preserves expanded plan');
+    await first.getByRole('button', { name:'暂停', exact:true }).click();
+    await first.getByRole('button', { name:'恢复追更', exact:true }).waitFor();
+    assert.equal(subscriptions[0].enabled,false);
+    assert(await first.getByRole('button', { name:'立即检查', exact:true }).isDisabled(), 'paused plans must be resumed before checking');
+    await first.getByRole('button', { name:'恢复追更', exact:true }).click();
+    await first.getByRole('button', { name:'暂停', exact:true }).waitFor();
+    await first.getByRole('button', { name:'立即检查', exact:true }).click();
+    await page.getByText('检查已提交，执行结果会在当前计划下自动更新', { exact:true }).waitFor();
+    assert(requests.some(r => r.path.endsWith('/p0/check') && r.method === 'POST'));
+    await first.getByRole('button', { name:'计划设置', exact:true }).click();
+    await first.getByRole('button', { name:'收起', exact:true }).click();
+    await page.locator('.workspace-navigation').getByRole('button', { name:'转存记录', exact:true }).click();
+    await page.getByText('计划已移除', { exact:true }).waitFor();
+    assert.equal(await page.locator('.plan').count(),4);
+    assert.equal(await page.locator('.standalone-log').count(),1);
+    const errorPlan = page.locator('.plan').filter({ hasText:'夸克主账号' });
+    await errorPlan.locator('.plan-toggle').click();
+    await errorPlan.getByRole('button', { name:/^日志/ }).click();
+    assert.match(await errorPlan.locator('.execution-error').innerText(), /目标目录已有同名文件/);
+    await page.getByLabel('搜索追更计划', { exact:true }).fill('夸克');
+    assert.equal(await page.locator('.plan').count(),1);
+    await page.getByLabel('搜索追更计划', { exact:true }).fill('');
+    await page.setViewportSize({ width:390,height:844 });
+    await page.locator('.cloud-page').evaluate(el => { el.scrollTop = 0; });
+    await page.screenshot({ path:'/tmp/seekbox-plans-mobile.png',fullPage:true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'page must not overflow on mobile');
+    assert.equal(errors.length,0, errors.join('\n'));
+    console.log(JSON.stringify({ passed:true, desktop:'1280x800',mobile:'390x844',checks:['plan grouping by ID','collapsed initial state','run pagination and logs','settings save','pause/resume','check action','expanded state survives refresh','removed plans retain logs','one-time transfers','search','mobile overflow','no runtime errors'] }));
+  } finally { await Promise.race([browser.close(), new Promise(resolve => setTimeout(resolve, 5000))]); }
+})().catch(error => { console.error(error); process.exitCode=1; });

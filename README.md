@@ -6,7 +6,7 @@
 | --- | --- |
 | 显示名 | 小白搜盘 |
 | 包名 | `fn-seekbox` |
-| 当前版本 | 1.5.9 |
+| 当前版本 | 1.5.17 |
 | 平台 | x86（amd64）/ ARM（arm64） |
 | 访问方式 | fnOS 统一网关（需登录） |
 | 维护者 | `kidoneself` |
@@ -41,7 +41,7 @@
 
 ### 方式一：安装 FPK（推荐）
 
-1. 准备对应 NAS 架构的 FPK：x86 为 `fn-seekbox-1.5.9-x86.fpk`；ARM 可按下方构建步骤生成 `fn-seekbox-1.5.9-arm.fpk`
+1. 准备对应 NAS 架构的 FPK：x86 为 `fn-seekbox-1.5.17-x86.fpk`；ARM 可按下方构建步骤生成 `fn-seekbox-1.5.17-arm.fpk`
 2. 打开 **应用中心** → **手动安装**，选择 FPK 文件
 3. 安装向导里按需填写出站代理；不需要代理可留空
 4. 安装完成后，在桌面点击 **小白搜盘** 图标
@@ -125,11 +125,11 @@ sudo appcenter-cli start fn-seekbox
 ```bash
 ./scripts/build-all.sh
 # fnpack 不在 PATH 时：FNPACK=/path/to/fnpack ./scripts/build-all.sh
-# 输出：fn-seekbox-1.5.9-x86.fpk、fn-seekbox-1.5.9-arm.fpk
-# 校验文件：build/fn-seekbox-1.5.9-SHA256SUMS.txt
+# 输出：fn-seekbox-1.5.17-x86.fpk、fn-seekbox-1.5.17-arm.fpk
+# 校验文件：build/fn-seekbox-1.5.17-SHA256SUMS.txt
 ```
 
-两个包分别包含 amd64 / arm64 静态后端及相应架构的扫码浏览器，前端相同。1.5.9 本次验证 x86，ARM 扫码未在实机验证。打包时会校验 ELF 架构，防止程序与包的平台标记不一致。1.3.5 已通过 x86 原生和 ARM64 QEMU 下的启动、搜索、网关鉴权及静态资源检查；ARM 飞牛实机安装尚未验证。
+两个包分别包含 amd64 / arm64 静态后端及相应架构的扫码浏览器，前端相同。1.5.17 本次验证 x86，ARM 扫码未在实机验证。打包时会校验 ELF 架构，防止程序与包的平台标记不一致。1.3.5 已通过 x86 原生和 ARM64 QEMU 下的启动、搜索、网关鉴权及静态资源检查；ARM 飞牛实机安装尚未验证。
 
 单独构建 x86：
 
@@ -142,7 +142,7 @@ cd frontend && npm run build && cp -R dist/* ../app/web/ && cd ..
 
 # 打包（提交飞牛用这个 .fpk）
 ./pack.sh
-# 输出：fn-seekbox-1.5.9-x86.fpk
+# 输出：fn-seekbox-1.5.17-x86.fpk
 ```
 
 单独构建 ARM64：先运行 `QR_PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm" ./scripts/prepare-qr-runtime.sh` 下载 ARM 浏览器，再运行 `GOARCH=arm64 ./scripts/build-seekbox.sh`，再运行 `PLATFORM=arm QR_CHROMIUM_DIR="$PWD/build/chromium-arm" ./pack.sh`；如修改前端，打包前同样需要更新 `app/web/`。

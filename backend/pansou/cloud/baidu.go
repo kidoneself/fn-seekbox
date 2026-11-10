@@ -12,12 +12,19 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"pansou/util/json"
 )
+
+type baiduOperationError struct{ Code int }
+
+func (e *baiduOperationError) Error() string {
+	return fmt.Sprintf("百度网盘操作失败（错误码 %d）", e.Code)
+}
 
 const bxEntryLimit = 10000
 const bxPageLimit = 100
@@ -138,8 +145,40 @@ func (p *baiduProvider) RootID() string { return "/" }
 type baiduSession struct {
 	provider            *baiduProvider
 	client              *http.Client
+	credentials         Credentials
+	cookies             map[string]string
 	token               string
 	shareID, shareOwner string
+}
+
+func baiduAccountCookie(name string) bool {
+	switch name {
+	case "BDUSS", "BDUSS_BFESS", "STOKEN", "STOKEN_BFESS", "PANPSC", "BAIDUID", "BAIDUID_BFESS", "csrfToken":
+		return true
+	}
+	return false
+}
+
+type baiduCookieJar struct {
+	http.CookieJar
+	host string
+}
+
+func (j *baiduCookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+	normalized := make([]*http.Cookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		c := *cookie
+		domain := strings.TrimPrefix(c.Domain, ".")
+		// Imported Cookie headers have no domain metadata and are seeded as
+		// host-only cookies. A subsequent .baidu.com rotation must replace that
+		// value, rather than send both the old and new login on every request.
+		if u.Hostname() == j.host && c.Path == "/" && baiduAccountCookie(c.Name) &&
+			(domain == "" || domain == j.host || (j.host == "pan.baidu.com" && domain == "baidu.com")) {
+			c.Domain = ""
+		}
+		normalized = append(normalized, &c)
+	}
+	j.CookieJar.SetCookies(u, normalized)
 }
 
 func (p *baiduProvider) session(c Credentials) (*baiduSession, error) {
@@ -147,8 +186,9 @@ func (p *baiduProvider) session(c Credentials) (*baiduSession, error) {
 	if raw == "" || strings.ContainsAny(raw, "\r\n") {
 		return nil, fmt.Errorf("请填写本人百度网盘完整 Cookie: %w", ErrAuthExpired)
 	}
-	jar, _ := cookiejar.New(nil)
+	baseJar, _ := cookiejar.New(nil)
 	u, _ := url.Parse(p.baseURL)
+	jar := &baiduCookieJar{CookieJar: baseJar, host: u.Hostname()}
 	r := &http.Request{Header: http.Header{"Cookie": []string{raw}}}
 	for _, cookie := range r.Cookies() {
 		cookie.Path = "/"
@@ -156,7 +196,76 @@ func (p *baiduProvider) session(c Credentials) (*baiduSession, error) {
 	}
 	client := *p.client
 	client.Jar = jar
-	return &baiduSession{provider: p, client: &client}, nil
+	s := &baiduSession{provider: p, client: &client, credentials: c}
+	s.cookies = s.loginCookies()
+	return s, nil
+}
+
+// Only account cookies belong in the persistent login. Share passwords such
+// as BDCLND and path-scoped cookies remain inside this operation's cookie jar.
+func (s *baiduSession) loginCookies() map[string]string {
+	u, _ := url.Parse(s.provider.baseURL + "/")
+	values := map[string]string{}
+	for _, c := range s.client.Jar.Cookies(u) {
+		if baiduAccountCookie(c.Name) {
+			// The jar returns the most specific cookie first.
+			if _, exists := values[c.Name]; !exists {
+				values[c.Name] = c.Value
+			}
+		}
+	}
+	return values
+}
+
+func (s *baiduSession) persistLoginCookies(ctx context.Context) error {
+	current := s.loginCookies()
+	// A redirected HTML login page can clear the cookie without a JSON errno.
+	// Keep the saved credential for diagnosis instead of persisting a logout.
+	if s.cookies["BDUSS"] != "" && current["BDUSS"] == "" {
+		return ErrAuthExpired
+	}
+	changed := len(current) != len(s.cookies)
+	for name, value := range current {
+		if s.cookies[name] != value {
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	values := map[string]string{}
+	r := &http.Request{Header: http.Header{"Cookie": {s.credentials["cookie"]}}}
+	for _, c := range r.Cookies() {
+		values[c.Name] = c.Value
+	}
+	for name := range s.cookies {
+		delete(values, name)
+	}
+	for name, value := range current {
+		values[name] = value
+	}
+	names := make([]string, 0, len(values))
+	for name := range values {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	pairs := make([]string, 0, len(names))
+	for _, name := range names {
+		pairs = append(pairs, name+"="+values[name])
+	}
+	updated := Credentials{}
+	for key, value := range s.credentials {
+		updated[key] = value
+	}
+	updated["cookie"] = strings.Join(pairs, "; ")
+	if err := CommitCredentials(ctx, updated); err != nil {
+		return err
+	}
+	// Later operations in the same task must also start with the committed
+	// value; changing only the database would reuse the caller's stale map.
+	s.credentials["cookie"] = updated["cookie"]
+	s.cookies = current
+	return nil
 }
 
 type baiduRunKey struct{}
@@ -210,6 +319,11 @@ func (s *baiduSession) request(ctx context.Context, method, endpoint string, q, 
 		return err
 	}
 	if raw, ok := out.(*string); ok {
+		if s.token != "" {
+			if err := s.persistLoginCookies(ctx); err != nil {
+				return err
+			}
+		}
 		*raw = string(b)
 		return nil
 	}
@@ -218,6 +332,14 @@ func (s *baiduSession) request(ctx context.Context, method, endpoint string, q, 
 	}
 	if json.Unmarshal(b, &status) != nil || status.Errno == nil {
 		return errors.New("百度网盘返回格式异常，请检查网页登录状态")
+	}
+	// Do not overwrite a retained login with cookies cleared by an expired
+	// session response. Other valid API responses may rotate the login even
+	// when the requested business operation fails (for example, quota limits).
+	if s.token != "" && *status.Errno != -6 && *status.Errno != 111 && *status.Errno != 112 {
+		if err := s.persistLoginCookies(ctx); err != nil {
+			return err
+		}
 	}
 	if *status.Errno != 0 {
 		switch *status.Errno {
@@ -230,7 +352,7 @@ func (s *baiduSession) request(ctx context.Context, method, endpoint string, q, 
 		case -30, -8, 4:
 			return ErrDestinationExists
 		default:
-			return fmt.Errorf("百度网盘操作失败（错误码 %d）", *status.Errno)
+			return &baiduOperationError{Code: *status.Errno}
 		}
 	}
 	if err := json.Unmarshal(b, out); err != nil {
@@ -255,6 +377,9 @@ func (s *baiduSession) login(ctx context.Context) (Identity, error) {
 		return Identity{}, ErrAuthExpired
 	}
 	s.token = out.Result.Token
+	if err := s.persistLoginCookies(ctx); err != nil {
+		return Identity{}, err
+	}
 	name := out.Result.Username
 	if name == "" {
 		name = "百度网盘 " + string(out.Result.UK)
@@ -577,6 +702,11 @@ func (p *baiduProvider) SaveBatch(ctx context.Context, c Credentials, share Shar
 	result.Submitted = true
 	err = session.request(ctx, "POST", "/share/transfer", url.Values{"shareid": {share.ID}, "from": {share.Data["owner"]}, "sekey": {share.Data["sekey"]}, "ondup": {"newcopy"}, "async": {"1"}}, url.Values{"fsidlist": {"[" + strings.Join(ids, ",") + "]"}, "path": {dir}}, &out)
 	if err != nil {
+		var rejected *baiduOperationError
+		// errno=2 is a rejected request, not an accepted asynchronous task.
+		if errors.As(err, &rejected) && rejected.Code == 2 {
+			result.Submitted = false
+		}
 		return result, err
 	}
 	for _, item := range out.Info {

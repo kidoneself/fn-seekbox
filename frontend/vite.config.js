@@ -1,6 +1,22 @@
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+
+// The package manifest is the source of truth for the version shown in the app.
+// A standalone frontend checkout has no package manifest and is labelled dev.
+function readAppVersion() {
+  let manifest
+  try {
+    manifest = readFileSync(new URL('../manifest', import.meta.url), 'utf8')
+  } catch (error) {
+    if (error.code === 'ENOENT') return 'dev'
+    throw error
+  }
+  const version = manifest.match(/^\s*version\s*=\s*(\S+)\s*$/m)?.[1]
+  if (!version) throw new Error('Package manifest is missing its version')
+  return version
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -22,6 +38,7 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     define: {
+      __APP_VERSION__: JSON.stringify(readAppVersion()),
       // Vue 3 feature flags
       __VUE_OPTIONS_API__: true,
       __VUE_PROD_DEVTOOLS__: false,

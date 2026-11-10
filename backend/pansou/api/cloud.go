@@ -32,6 +32,62 @@ func RegisterCloudRoutes(router *gin.Engine, service *cloud.Service) {
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	})
+	g.GET("/center", func(c *gin.Context) {
+		status, err := service.CenterStatus(cloudOwner(c))
+		if !cloudError(c, err) {
+			c.JSON(200, status)
+		}
+	})
+	g.PUT("/center", func(c *gin.Context) {
+		var req struct {
+			Daily     *bool `json:"daily_enabled"`
+			Reporting *bool `json:"reporting_enabled"`
+		}
+		if !cloudJSON(c, &req) {
+			return
+		}
+		status, err := service.SetCenterConfig(cloudOwner(c), req.Daily, req.Reporting)
+		if !cloudError(c, err) {
+			c.JSON(200, status)
+		}
+	})
+	g.GET("/center/sites", func(c *gin.Context) {
+		sites, stale, err := service.CenterSites(c.Request.Context(), cloudOwner(c))
+		if !cloudError(c, err) {
+			c.JSON(200, gin.H{"sites": sites, "stale": stale})
+		}
+	})
+	g.GET("/accounts/:id/check-source", func(c *gin.Context) {
+		result, err := service.FunctionSourcePreview(c.Request.Context(), cloudOwner(c), c.Param("id"))
+		if !cloudError(c, err) {
+			c.JSON(200, result)
+		}
+	})
+	g.GET("/function-checks", func(c *gin.Context) {
+		checks, err := service.FunctionChecks(cloudOwner(c))
+		if !cloudError(c, err) {
+			c.JSON(200, gin.H{"checks": checks})
+		}
+	})
+	g.POST("/accounts/:id/function-check", func(c *gin.Context) {
+		var req struct{}
+		if !cloudJSON(c, &req) {
+			return
+		}
+		check, err := service.QueueFunctionCheck(cloudOwner(c), c.Param("id"))
+		if !cloudError(c, err) {
+			c.JSON(202, gin.H{"check": check})
+		}
+	})
+	g.POST("/function-checks/:id/cleanup", func(c *gin.Context) {
+		var req struct{}
+		if !cloudJSON(c, &req) {
+			return
+		}
+		if !cloudError(c, service.QueueFunctionCleanup(cloudOwner(c), c.Param("id"))) {
+			c.JSON(202, gin.H{"ok": true})
+		}
+	})
 	g.GET("/providers", func(c *gin.Context) { c.JSON(200, gin.H{"providers": service.Providers()}) })
 	g.POST("/qr", func(c *gin.Context) {
 		var req struct {
