@@ -1,0 +1,18 @@
+{
+  "service": "seekbox-public-config",
+  "domain": "hermes.smartloan.cn",
+  "protocol": "1.1",
+  "backend_sha256": "452964af83a8a7eb4155a4dbf80d0db12dd250349bf0613d1845d03b19a99291",
+  "source_sites": 43,
+  "isolated_integration_test_groups": 11,
+  "production_fixtures_inserted": false,
+  "source_status": "all three placeholders disabled",
+  "excluded_phase_two": [
+    "search analytics",
+    "user transfer analytics",
+    "subscription analytics"
+  ],
+  "client_integration": "not implemented by this server task",
+  "release": "20261106-1",
+  "dashboard": "six plain-language metrics, three primary navigation items, per-provider daily CSV"
+}

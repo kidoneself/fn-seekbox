@@ -1,0 +1,799 @@
+{
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/api/check-link?provider=baidu",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/check-link?provider=quark",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/check-link?provider=xunlei",
+      "status": 503
+    },
+    {
+      "method": "GET",
+      "path": "/api/check-link",
+      "status": 400
+    },
+    {
+      "method": "GET",
+      "path": "/api/check-link?provider=other",
+      "status": 400
+    },
+    {
+      "method": "GET",
+      "path": "/api/check-link?provider=baidu&provider=quark",
+      "status": 400
+    },
+    {
+      "method": "GET",
+      "path": "/api/search-sites",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/config",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "path": "/api/client/config",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/client/heartbeat",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/client/events/batch",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/client/register",
+      "status": 400
+    },
+    {
+      "method": "POST",
+      "path": "/seekbox-config/api/login",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/seekbox-config/api/sites/ikantv",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/search-sites",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/seekbox-config/api/sites/ikantv",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/config",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/seekbox-config/api/api-keys",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/client-settings",
+      "status": 403
+    },
+    {
+      "method": "PUT",
+      "path": "/seekbox-config/api/api-keys/key_e1WMmNPoL2hudmaVLiz0epGN-oRkjhXTfJAxh5fDsD4",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/client-settings",
+      "status": 200
+    },
+    {
+      "method": "PUT",
+      "path": "/seekbox-config/api/api-keys/key_e1WMmNPoL2hudmaVLiz0epGN-oRkjhXTfJAxh5fDsD4",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/client-settings",
+      "status": 403
+    },
+    {
+      "method": "PUT",
+      "path": "/seekbox-config/api/api-keys/key_e1WMmNPoL2hudmaVLiz0epGN-oRkjhXTfJAxh5fDsD4",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/client-settings",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/analytics/overview",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/analytics/trends?metric=successful_cycles",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/analytics/trends?metric=running_instances",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/analytics/trends?metric=continuous_running_instances_7d",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/analytics/trends?metric=retention_d7",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/seekbox-config/api/openapi",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/seekbox-config/api/logout",
+      "status": 200
+    }
+  ],
+  "samples": {
+    "baidu": {
+      "code": "SOURCE_DISABLED",
+      "request_id": "req_ZrChac5FUBZ1-nnGRY9JHS3iQHzf0e22ozZrxAGfhFA",
+      "message": "该网盘测试源已停用",
+      "data": null
+    },
+    "quark": {
+      "code": "SOURCE_DISABLED",
+      "request_id": "req_52CFyZFIwxG4D--feLTbdTcnoF0b4RKBQaw-ixphh30",
+      "message": "该网盘测试源已停用",
+      "data": null
+    },
+    "xunlei": {
+      "code": "SOURCE_DISABLED",
+      "request_id": "req_JDYPI3uLS6xwyQRSOBazMHI-Yl-LyskP8psATuzJPq4",
+      "message": "该网盘测试源已停用",
+      "data": null
+    },
+    "search_sites": {
+      "code": 0,
+      "request_id": "req_RmN6wm1afwLDLd59aUb4ocfGADQpwxQrkTULCRuCLgo",
+      "message": "ok",
+      "data": [
+        {
+          "id": "ikantv",
+          "name": "ikantv",
+          "url": "https://api.naspt.vip/",
+          "enabled": true,
+          "order": 1
+        },
+        {
+          "id": "dyyjpro",
+          "name": "dyyjpro",
+          "url": "https://dyyjpro.com",
+          "enabled": true,
+          "order": 2
+        },
+        {
+          "id": "duoduo",
+          "name": "duoduo",
+          "url": "https://tv.yydsys.top/",
+          "enabled": true,
+          "order": 3
+        },
+        {
+          "id": "feikuai",
+          "name": "feikuai",
+          "url": "https://feikuai.tv/",
+          "enabled": true,
+          "order": 4
+        },
+        {
+          "id": "gaoqing888",
+          "name": "gaoqing888",
+          "url": "https://www.gaoqing888.com",
+          "enabled": true,
+          "order": 5
+        },
+        {
+          "id": "gying",
+          "name": "gying",
+          "url": "https://www.gying.net",
+          "enabled": true,
+          "order": 6
+        },
+        {
+          "id": "hunhepan",
+          "name": "hunhepan",
+          "url": "https://hunhepan.com/search",
+          "enabled": true,
+          "order": 7
+        },
+        {
+          "id": "jutoushe",
+          "name": "jutoushe",
+          "url": "https://1.star2.cn/",
+          "enabled": true,
+          "order": 8
+        },
+        {
+          "id": "kkv",
+          "name": "kkv",
+          "url": "http://kkv.q-23.cn",
+          "enabled": true,
+          "order": 9
+        },
+        {
+          "id": "lingjisp",
+          "name": "lingjisp",
+          "url": "https://web5.mukaku.com/prod/api/v1/",
+          "enabled": true,
+          "order": 10
+        },
+        {
+          "id": "lou1",
+          "name": "lou1",
+          "url": "http://www.1lou.me",
+          "enabled": true,
+          "order": 11
+        },
+        {
+          "id": "melost",
+          "name": "melost",
+          "url": "https://www.melost.cn",
+          "enabled": true,
+          "order": 12
+        },
+        {
+          "id": "ouge",
+          "name": "ouge",
+          "url": "https://woog.nxog.eu.org/",
+          "enabled": true,
+          "order": 13
+        },
+        {
+          "id": "panlian",
+          "name": "panlian",
+          "url": "https://pinglian.lol",
+          "enabled": true,
+          "order": 14
+        },
+        {
+          "id": "qqpd",
+          "name": "qqpd",
+          "url": "https://pd.qq.com/",
+          "enabled": true,
+          "order": 15
+        },
+        {
+          "id": "quark4k",
+          "name": "quark4k",
+          "url": "https://quark4k.com/",
+          "enabled": true,
+          "order": 16
+        },
+        {
+          "id": "quarksoo",
+          "name": "quarksoo",
+          "url": "https://quarksoo.cc/",
+          "enabled": true,
+          "order": 17
+        },
+        {
+          "id": "quarktv",
+          "name": "quarktv",
+          "url": "https://www.quarktv.com",
+          "enabled": true,
+          "order": 18
+        },
+        {
+          "id": "sousou",
+          "name": "sousou",
+          "url": "https://sousou.pro/",
+          "enabled": true,
+          "order": 19
+        },
+        {
+          "id": "thepiratebay",
+          "name": "thepiratebay",
+          "url": "https://thpibay.xyz/",
+          "enabled": true,
+          "order": 20
+        },
+        {
+          "id": "wanou",
+          "name": "wanou",
+          "url": "https://woog.nxog.eu.org/",
+          "enabled": true,
+          "order": 21
+        },
+        {
+          "id": "weibo",
+          "name": "weibo",
+          "url": "https://m.weibo.cn/",
+          "enabled": true,
+          "order": 22
+        },
+        {
+          "id": "xb6v",
+          "name": "xb6v",
+          "url": "https://www.66ss.org",
+          "enabled": true,
+          "order": 23
+        },
+        {
+          "id": "xiaozhang",
+          "name": "xiaozhang",
+          "url": "https://xzys.fun",
+          "enabled": true,
+          "order": 24
+        },
+        {
+          "id": "yunso",
+          "name": "yunso",
+          "url": "https://www.yunso.net",
+          "enabled": true,
+          "order": 25
+        },
+        {
+          "id": "zxzj",
+          "name": "zxzj",
+          "url": "https://www.zxzjys.com",
+          "enabled": true,
+          "order": 26
+        },
+        {
+          "id": "aipan",
+          "name": "aipan",
+          "url": "https://www.aipan.me",
+          "enabled": true,
+          "order": 27
+        },
+        {
+          "id": "clmao",
+          "name": "clmao",
+          "url": "https://clm64.top",
+          "enabled": true,
+          "order": 28
+        },
+        {
+          "id": "clxiong",
+          "name": "clxiong",
+          "url": "https://www.cilixiong.org",
+          "enabled": true,
+          "order": 29
+        },
+        {
+          "id": "diduan",
+          "name": "diduan",
+          "url": "https://ddys.io",
+          "enabled": true,
+          "order": 30
+        },
+        {
+          "id": "dygang",
+          "name": "dygang",
+          "url": "https://www.dygang.tv",
+          "enabled": true,
+          "order": 31
+        },
+        {
+          "id": "erxiaopan",
+          "name": "erxiaopan",
+          "url": "https://www.2xiaopan.one",
+          "enabled": true,
+          "order": 32
+        },
+        {
+          "id": "hjzhencai",
+          "name": "hjzhencai",
+          "url": "https://www.hjzhencai.top",
+          "enabled": true,
+          "order": 33
+        },
+        {
+          "id": "huban",
+          "name": "huban",
+          "url": "http://xhban.xyz:20720",
+          "enabled": true,
+          "order": 34
+        },
+        {
+          "id": "leso",
+          "name": "leso",
+          "url": "https://www.leso.cc",
+          "enabled": true,
+          "order": 35
+        },
+        {
+          "id": "libvio",
+          "name": "libvio",
+          "url": "https://libvio.host",
+          "enabled": true,
+          "order": 36
+        },
+        {
+          "id": "meitizy",
+          "name": "meitizy",
+          "url": "https://apis.451024.xyz",
+          "enabled": true,
+          "order": 37
+        },
+        {
+          "id": "miosou",
+          "name": "miosou",
+          "url": "https://miosou.cc",
+          "enabled": true,
+          "order": 38
+        },
+        {
+          "id": "muou",
+          "name": "muou",
+          "url": "http://www.muoua.top",
+          "enabled": true,
+          "order": 39
+        },
+        {
+          "id": "shandian",
+          "name": "shandian",
+          "url": "http://sd.sduc.site",
+          "enabled": true,
+          "order": 40
+        },
+        {
+          "id": "xiaokupan",
+          "name": "xiaokupan",
+          "url": "https://xiaokupan.com",
+          "enabled": true,
+          "order": 41
+        },
+        {
+          "id": "xiaoyu",
+          "name": "xiaoyu",
+          "url": "https://xykmovie.com",
+          "enabled": true,
+          "order": 42
+        },
+        {
+          "id": "zhizhen",
+          "name": "zhizhen",
+          "url": "http://www.mihdr.top",
+          "enabled": true,
+          "order": 43
+        }
+      ]
+    },
+    "overview": {
+      "code": 0,
+      "request_id": "req_1t0X0r9jIK6aZz_uF6HkXblG-ghQced3sNn_765HKSg",
+      "message": "ok",
+      "data": {
+        "accounts_by_provider": {
+          "baidu": 0,
+          "quark": 0,
+          "xunlei": 0
+        },
+        "as_of": "2026-11-05T09:49:57.228648143Z",
+        "cleanup_pending_runs": 0,
+        "completed_daily_slots": 0,
+        "continuous_running_instances_30d": 0,
+        "continuous_running_instances_7d": 0,
+        "coverage": {
+          "denominator": 0,
+          "numerator": 0,
+          "value": null
+        },
+        "cumulative_successful_cycles": 0,
+        "current_accounts": 0,
+        "daily_successful_slots": 0,
+        "delayed_daily_slots": 0,
+        "executed_runs": 0,
+        "expected_daily_slots": 0,
+        "expected_daily_slots_recent_instances": 0,
+        "expected_slots_estimated": true,
+        "expired_accounts": 0,
+        "from": "2026-11-05T00:00:00+08:00",
+        "functional_accounts": 0,
+        "instance_filter_basis": "current snapshot; source_id uses known run association",
+        "manual_successful_cycles": 0,
+        "new_instances": 0,
+        "online_instances": 0,
+        "passed_expected_daily_slots": 0,
+        "plan_time_basis": "scheduled_for",
+        "registered_instances": 0,
+        "result_failed": 0,
+        "result_incomplete": 0,
+        "result_passed": 0,
+        "result_skipped": 0,
+        "running_instances_30d": 0,
+        "running_instances_7d": 0,
+        "stage_failure_distribution": {},
+        "started_daily_slots": 0,
+        "successful_cycles": 0,
+        "successful_cycles_by_provider": {
+          "baidu": 0,
+          "quark": 0,
+          "xunlei": 0
+        },
+        "time_basis": "completed_at",
+        "timezone": "Asia/Shanghai",
+        "to": "2026-11-06T00:00:00+08:00",
+        "transfer_confirmed_runs": 0,
+        "transfer_failed_runs": 0,
+        "triggers": [
+          "daily",
+          "catch_up"
+        ],
+        "unknown_accounts": 0,
+        "unknown_runs": 0,
+        "unreported_daily_slots": 0,
+        "unsupported_metrics": [
+          "search_count",
+          "user_transfer_files",
+          "active_users"
+        ],
+        "valid_accounts": 0,
+        "versions_all_instances": {}
+      }
+    },
+    "successful_cycles": {
+      "code": 0,
+      "request_id": "req_b8HCo1EZkbisRtAJyLJ-H9cjWCIKxykYasgQYLc_f4o",
+      "message": "ok",
+      "data": {
+        "as_of": "2026-11-05T09:49:57.302326656Z",
+        "from": "2026-10-30T00:00:00+08:00",
+        "granularity": "day",
+        "group_by": "",
+        "items": [
+          {
+            "bucket": "2026-10-30",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-10-31",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-01",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-02",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-03",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-04",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-05",
+            "group": "all",
+            "value": 0
+          }
+        ],
+        "metric": "successful_cycles",
+        "time_basis": "completed_at",
+        "timezone": "Asia/Shanghai",
+        "to": "2026-11-06T00:00:00+08:00",
+        "version_basis": "current snapshot for running; run version for cycles"
+      }
+    },
+    "running_instances": {
+      "code": 0,
+      "request_id": "req_HNzGcCiOY0e9yx5HFX4pIl2nt5PTvirtW9NrrWFsfKA",
+      "message": "ok",
+      "data": {
+        "as_of": "2026-11-05T09:49:57.393944378Z",
+        "from": "2026-10-30T00:00:00+08:00",
+        "granularity": "day",
+        "group_by": "",
+        "items": [
+          {
+            "bucket": "2026-10-30",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-10-31",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-01",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-02",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-03",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-04",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-05",
+            "group": "all",
+            "value": 0
+          }
+        ],
+        "metric": "running_instances",
+        "time_basis": "evidence_date",
+        "timezone": "Asia/Shanghai",
+        "to": "2026-11-06T00:00:00+08:00",
+        "version_basis": "current snapshot for running; run version for cycles"
+      }
+    },
+    "continuous_running_instances_7d": {
+      "code": 0,
+      "request_id": "req_bUKOR4OeZllNYuO2hFH6vTo4B2b7f7BCrdk8INnPOI0",
+      "message": "ok",
+      "data": {
+        "as_of": "2026-11-05T09:49:57.477729926Z",
+        "from": "2026-10-30T00:00:00+08:00",
+        "granularity": "day",
+        "group_by": "",
+        "items": [
+          {
+            "bucket": "2026-10-30",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-10-31",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-01",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-02",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-03",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-04",
+            "group": "all",
+            "value": 0
+          },
+          {
+            "bucket": "2026-11-05",
+            "group": "all",
+            "value": 0
+          }
+        ],
+        "metric": "continuous_running_instances_7d",
+        "time_basis": "evidence_date",
+        "timezone": "Asia/Shanghai",
+        "to": "2026-11-06T00:00:00+08:00",
+        "version_basis": "current snapshot for running; run version for cycles"
+      }
+    },
+    "retention_d7": {
+      "code": 0,
+      "request_id": "req_PvQOoeEoiGrgQlbP84k9IDFnd6GVlq9lkCMJhfdv3bc",
+      "message": "ok",
+      "data": {
+        "as_of": "2026-11-05T09:49:57.535191723Z",
+        "from": "2026-10-30T00:00:00+08:00",
+        "granularity": "day",
+        "group_by": "",
+        "items": [
+          {
+            "bucket": "2026-10-30",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          },
+          {
+            "bucket": "2026-10-31",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          },
+          {
+            "bucket": "2026-11-01",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          },
+          {
+            "bucket": "2026-11-02",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          },
+          {
+            "bucket": "2026-11-03",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          },
+          {
+            "bucket": "2026-11-04",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          },
+          {
+            "bucket": "2026-11-05",
+            "denominator": 0,
+            "group": "all",
+            "matured": false,
+            "numerator": null,
+            "value": null
+          }
+        ],
+        "metric": "retention_d7",
+        "time_basis": "first_registered_date",
+        "timezone": "Asia/Shanghai",
+        "to": "2026-11-06T00:00:00+08:00",
+        "version_basis": "first_registered_version"
+      }
+    }
+  },
+  "note": "真实公网返回。未写入模拟实例或检查次数。临时验收Key已停用，站点排序已恢复。"
+}

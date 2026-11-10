@@ -1,0 +1,1735 @@
+{
+  "components": {
+    "securitySchemes": {
+      "adminSession": {
+        "in": "cookie",
+        "name": "seekbox_config_session",
+        "type": "apiKey"
+      },
+      "bearerAuth": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "小白搜盘管理服务",
+    "version": "1.1"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/api/check-link": {
+      "get": {
+        "description": "provider 必填且只能出现一次：baidu / quark / xunlei。未配置404、停用/到期503；每次读取最新配置。",
+        "operationId": "GET /api/check-link",
+        "parameters": [
+          {
+            "description": "baidu / quark / xunlei；只允许一个值",
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "summary": "获取网盘测试源"
+      }
+    },
+    "/api/client/config": {
+      "get": {
+        "description": "Bearer使用登记返回的report_token。配置版本变化后客户端更新上报间隔和批次限制。检查仍由客户端在北京时间00:00执行；服务端不操作网盘。",
+        "operationId": "GET /api/client/config",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "/api/client/config"
+      }
+    },
+    "/api/client/events/batch": {
+      "post": {
+        "description": "四类account_check事件。started: run_id/account_ref/provider/trigger/scheduled_for/attempt；stage_finished: run_id/stage/status/duration_ms/error_code；finished: 完整身份、source_id/source_version/auth_status/result/failed_stage/error_code/duration_ms/cleanup_pending/deletion_mode及7阶段stages；cleanup_finished: run_id/result/duration_ms/error_code/deletion_mode。完整字段、枚举和实际闭环计次规则见随包 requirements-v1.1.md 第9节。去重按实例+event_id；同run终态换ID仍只计一次。最多补报7天，未来超过5分钟拒收；按条accepted/duplicate/rejected，应只重试未确认或retryable=true项目。",
+        "operationId": "POST /api/client/events/batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "batch_id": "<随机ID>",
+                "events": [],
+                "schema_version": 1
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "批量上报检查事件"
+      }
+    },
+    "/api/client/heartbeat": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /api/client/heartbeat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "accounts": [],
+                "accounts_complete": true,
+                "active_jobs": 0,
+                "app_version": "1.5.13",
+                "arch": "amd64",
+                "platform": "fnos",
+                "reported_at": "<RFC3339>",
+                "schema_version": 1,
+                "snapshot_seq": 1,
+                "subscriptions": {
+                  "enabled": 0,
+                  "total": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "上报运行快照"
+      }
+    },
+    "/api/client/register": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /api/client/register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "app_version": "1.5.13",
+                "arch": "amd64",
+                "client_instance_id": "<持久随机UUID>",
+                "platform": "fnos",
+                "registration_nonce": "<至少32随机字节的base64url>",
+                "schema_version": 1
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "summary": "登记匿名安装实例"
+      }
+    },
+    "/api/search-sites": {
+      "get": {
+        "description": "包括停用记录，按 order、id 升序；网址仅为配置，不自动新增搜索插件。",
+        "operationId": "GET /api/search-sites",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "summary": "获取全部搜索来源"
+      }
+    },
+    "/seekbox-config/api/analytics/accounts": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/accounts",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1–100，默认20",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "上一页next_cursor；保持筛选不变；新记录以as_of限制，当前快照可更新",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/checks": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/checks",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间起点（含）；趋势<=366天，明细<=31天",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间终点（不含）",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1–100，默认20",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "上一页next_cursor；保持筛选不变；新记录以as_of限制，当前快照可更新",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "result",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "error_code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "trigger",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/checks/{run_id}": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/checks/:run_id",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "run所属匿名实例；用于避免不同实例同run_id冲突",
+            "in": "query",
+            "name": "installation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/events": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/events",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间起点（含）；趋势<=366天，明细<=31天",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间终点（不含）",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1–100，默认20",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "上一页next_cursor；保持筛选不变；新记录以as_of限制，当前快照可更新",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "result",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "error_code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "trigger",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按检查原始结果、受控错误码、daily/catch_up/manual或测试源筛选",
+            "in": "query",
+            "name": "source_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/instances": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/instances",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1–100，默认20",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "上一页next_cursor；保持筛选不变；新记录以as_of限制，当前快照可更新",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/overview": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/overview",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间起点（含）；趋势<=366天，明细<=31天",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间终点（不含）",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/slots": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/slots",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间起点（含）；趋势<=366天，明细<=31天",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间终点（不含）",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "1–100，默认20",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "上一页next_cursor；保持筛选不变；新记录以as_of限制，当前快照可更新",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/analytics/trends": {
+      "get": {
+        "description": "支持from/to RFC3339左闭右开、Asia/Shanghai、provider、app_version、installation_id等；详情筛选及分页见协议。搜索/转存扩展指标尚未启用，明确返回METRIC_NOT_SUPPORTED。",
+        "operationId": "GET /seekbox-config/api/analytics/trends",
+        "parameters": [
+          {
+            "description": "只支持Asia/Shanghai",
+            "in": "query",
+            "name": "timezone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "按匿名实例筛选",
+            "in": "query",
+            "name": "installation_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "运行按当前快照版本、run按执行版本、留存按首次登记版本",
+            "in": "query",
+            "name": "app_version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "baidu/quark/xunlei；运行留存不支持此筛选",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间起点（含）；趋势<=366天，明细<=31天",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC3339区间终点（不含）",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "successful_cycles/daily_successful_slots/running_instances/continuous_running_instances_7d/continuous_running_instances_30d/retention_d1/retention_d7",
+            "in": "query",
+            "name": "metric",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "day/hour；运行留存只允许day",
+            "in": "query",
+            "name": "granularity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "provider/source_id/app_version/result/error_code；运行留存只允许app_version，每日计划槽只允许provider",
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "统计与运行明细"
+      }
+    },
+    "/seekbox-config/api/api-keys": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/api-keys",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/api-keys"
+      },
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /seekbox-config/api/api-keys",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "enabled": true,
+                "expires_at": null,
+                "name": "<调用方名称>",
+                "permissions": []
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/api-keys"
+      }
+    },
+    "/seekbox-config/api/api-keys/{id}": {
+      "put": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "PUT /seekbox-config/api/api-keys/:id",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "enabled": true,
+                "expires_at": null,
+                "name": "<调用方名称>",
+                "permissions": []
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/api-keys/:id"
+      }
+    },
+    "/seekbox-config/api/api-keys/{id}/rotate": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /seekbox-config/api/api-keys/:id/rotate",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/api-keys/:id/rotate"
+      }
+    },
+    "/seekbox-config/api/audit": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/audit",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/audit"
+      }
+    },
+    "/seekbox-config/api/check-links/{provider}": {
+      "put": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "PUT /seekbox-config/api/check-links/:provider",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "enabled": false,
+                "expires_at": null,
+                "file_path": "功能检查.txt",
+                "password": "",
+                "share_url": "<真实HTTPS分享>",
+                "source_id": "probe_baidu_01"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "维护网盘测试源"
+      }
+    },
+    "/seekbox-config/api/client-settings": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/client-settings",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/client-settings"
+      },
+      "patch": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "PATCH /seekbox-config/api/client-settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "event_batch_max_bytes": 262144,
+                "event_batch_max_items": 100,
+                "event_max_age_days": 7,
+                "heartbeat_interval_seconds": 600,
+                "raw_retention_days": 90,
+                "summary_retention_days": 365
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/client-settings"
+      }
+    },
+    "/seekbox-config/api/config": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/config",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/config"
+      }
+    },
+    "/seekbox-config/api/endpoints": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/endpoints",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/endpoints"
+      }
+    },
+    "/seekbox-config/api/instances/{id}/revoke": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /seekbox-config/api/instances/:id/revoke",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/instances/:id/revoke"
+      }
+    },
+    "/seekbox-config/api/login": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /seekbox-config/api/login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "password": "<管理员密码>"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "summary": "后台登录"
+      }
+    },
+    "/seekbox-config/api/logout": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /seekbox-config/api/logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/logout"
+      }
+    },
+    "/seekbox-config/api/openapi": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/openapi",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/openapi"
+      }
+    },
+    "/seekbox-config/api/session": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/session",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/session"
+      }
+    },
+    "/seekbox-config/api/sites": {
+      "post": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "POST /seekbox-config/api/sites",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "enabled": true,
+                "id": "<稳定插件ID>",
+                "name": "<名称>",
+                "order": 1,
+                "url": "<实际配置网址>"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "管理搜索来源"
+      }
+    },
+    "/seekbox-config/api/sites/{id}": {
+      "delete": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "DELETE /seekbox-config/api/sites/:id",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "管理搜索来源"
+      },
+      "put": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "PUT /seekbox-config/api/sites/:id",
+        "parameters": [
+          {
+            "description": "稳定标识；使用此接口的对应ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "enabled": true,
+                "name": "<名称>",
+                "order": 1,
+                "url": "<实际配置网址>"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "管理搜索来源"
+      }
+    },
+    "/seekbox-config/api/stats": {
+      "get": {
+        "description": "真实接口；字段与协议详见随包 requirements-v1.1.md。所有响应带 request_id；错误 data=null。",
+        "operationId": "GET /seekbox-config/api/stats",
+        "responses": {
+          "200": {
+            "description": "统一code/message/request_id/data响应"
+          },
+          "400": {
+            "description": "参数错误"
+          },
+          "401": {
+            "description": "凭证无效"
+          },
+          "403": {
+            "description": "无操作权限"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminSession": []
+          }
+        ],
+        "summary": "/stats"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://hermes.smartloan.cn"
+    }
+  ]
+}

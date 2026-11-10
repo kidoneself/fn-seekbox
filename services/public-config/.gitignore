@@ -1,0 +1,7 @@
+build/
+frontend/node_modules/
+frontend/dist/
+data/
+secrets/
+*.tar.gz
+*.log
